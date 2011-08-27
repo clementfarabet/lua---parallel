@@ -29,6 +29,7 @@
 --                buffer
 --
 -- history:
+--     August 27, 2011, 6:31PM - beta release - Clement Farabet
 --     August 26, 2011, 6:03PM - creation - Clement Farabet
 ----------------------------------------------------------------------
 

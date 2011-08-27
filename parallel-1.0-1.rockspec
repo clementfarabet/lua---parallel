@@ -14,7 +14,7 @@ description = {
             and communicate via a super raw shared memory
          buffer                                       
    ]],
-   homepage = "",
+   homepage = "https://github.com/clementfarabet/lua---parallel/wiki",
    license = "MIT/X11"
 }
 
