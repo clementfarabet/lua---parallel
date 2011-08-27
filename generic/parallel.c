@@ -44,7 +44,9 @@ static int parallel_(create)(lua_State *L) {
     }
 
     // create shared buffer
-    if((shmem_id[pid*2+i] = shmget(shmem_key[pid*2+i], requested_size, 0644 | IPC_CREAT)) == -1) {
+    if((shmem_id[pid*2+i] = shmget(shmem_key[pid*2+i], 
+                                   requested_size + (int)sizeof(parallel_(Buffer)),
+                                   0644 | IPC_CREAT)) == -1) {
       perror("<parallel> shmget couldnt sync the shared mem segment");
       lua_pushnil(L);
       return 1;

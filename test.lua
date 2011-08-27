@@ -18,7 +18,7 @@ worker = [[
          parallel.receive(parallel.parent, t)
          parallel.print('received storage of size ' .. t:size())
          parallel.print('first elets: ', t[1], t[2], t[3])
-         sys.sleep(1)
+         sys.sleep(0.1)
       end
 ]]
 
