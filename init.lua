@@ -65,8 +65,50 @@ id = assignedid or 0
 parent = parent or {id = -1}
 processid = 1
 processes = {}
-sharedSize = 8*1024
+sharedSize = 1*1024*1024
 TMPFILE = '/tmp/lua.parallel.process.'
+
+--------------------------------------------------------------------------------
+-- shared memory issues
+--------------------------------------------------------------------------------
+macos_etc = [[
+kern.sysv.shmmax=268435456
+kern.sysv.shmmin=1
+kern.sysv.shmmni=2048
+kern.sysv.shmseg=512
+kern.sysv.shmall=65536
+]]
+
+shared = function()
+            glob.io.write(sys.COLORS.red)
+            if sys.OS == 'macos' then
+               print('MAX SHARED MEMORY reached !')
+               print('currently ' .. (sharedSize*2) .. ' bytes are needed for each child')
+               print('created (each call to parallel.new()), if you intend to')
+               print('create N children, set your shmmax to N*' .. (sharedSize*2))
+               print('On MacOS this can be done by adding this to /etc/sysctl.conf :\n')
+               glob.print(macos_etc)
+               print('and then rebooting')
+               print('')
+               print('You can also reduce the memory allocated for each new process by')
+               print('setting: parallel.sharedSize to a smaller value (note that this')
+               print('might result in slower data transfers)\n')
+            elseif sys.OS == 'linux' then
+               print('MAX SHARED MEMORY reached !')
+               print('currently ' .. (sharedSize*2) .. ' bytes are needed for each child')
+               print('created (each call to parallel.new()), if you intend to')
+               print('create N children, set your shmmax to N*' .. (sharedSize*2))
+               print('')
+               print('You can also reduce the memory allocated for each new process by')
+               print('setting: parallel.sharedSize to a smaller value (note that this')
+               print('might result in slower data transfers)\n')
+            else
+               print('SHARED MEMORY problem !')
+               print('unsupported OS, dont know how to deal with shared memory')
+            end
+            glob.io.write(sys.COLORS.none)
+            error('shared mem')
+         end
 
 --------------------------------------------------------------------------------
 -- start and run new process
@@ -104,7 +146,9 @@ run = function(code,...)
 
          -- (3) register child process for future reference
          processes[processid] = {file=tmpfile}
-         torch.Storage().parallel.create(sharedSize, processid, fileWR, fileRD)
+         if not torch.Storage().parallel.create(sharedSize, processid, fileWR, fileRD) then
+            shared()
+         end
          processid = processid + 1
          return {id=processid-1, join=join}
       end
@@ -151,5 +195,5 @@ receive = function(process, object)
 -- all processes should use this print method
 --------------------------------------------------------------------------------
 print = function(...)
-           glob.print('<parallel#' .. glob.string.format('%03d',id) .. '> ', ...)
+           glob.print('<parallel#' .. glob.string.format('%03d',id) .. '>', ...)
         end

@@ -44,10 +44,7 @@ static int parallel_(create)(lua_State *L) {
     }
 
     // create shared buffer
-    if((shmem_id[pid*2+i] = shmget(shmem_key[pid*2+i], 
-                                   requested_size + (int)sizeof(parallel_(Buffer)),
-                                   0644 | IPC_CREAT)) == -1) {
-      perror("<parallel> shmget couldnt sync the shared mem segment");
+    if((shmem_id[pid*2+i] = shmget(shmem_key[pid*2+i], requested_size, 0644 | IPC_CREAT)) == -1) {
       lua_pushnil(L);
       return 1;
     }
@@ -63,8 +60,9 @@ static int parallel_(create)(lua_State *L) {
     buf->size = 0;
   }
 
-  // no arg returned
-  return 0;
+  // success
+  lua_pushboolean(L, 1);
+  return 1;
 }
 
 static int parallel_(connect)(lua_State *L) {
@@ -96,8 +94,9 @@ static int parallel_(connect)(lua_State *L) {
     shmem_data[pid*2+i] = shmat(shmem_id[pid*2+i], (void *)0, 0);
   }
 
-  // no arg returned
-  return 0;
+  // success
+  lua_pushboolean(L, 1);
+  return 1;
 }
 
 static int parallel_(disconnect)(lua_State *L) {
