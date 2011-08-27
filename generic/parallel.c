@@ -38,6 +38,9 @@ static int parallel_(create)(lua_State *L) {
   paths[0] = lua_tostring(L, 3);
   paths[1] = lua_tostring(L, 4);
 
+  // message
+  printf("<parallel#000>  creating shared memory with process %d\n", pid);
+
   // initialize 2 shared buffers: one for RDs, one for WRs
   int i;
   for (i=0; i<2; i++) {
@@ -58,7 +61,10 @@ static int parallel_(create)(lua_State *L) {
     shmem_size[pid*2+i] = requested_size - sizeof(parallel_(Buffer));
 
     // and link data to the segment
-    shmem_data[pid*2+i] = shmat(shmem_id[pid*2+i], (void *)0, 0);
+    if ((long int)(shmem_data[pid*2+i] = shmat(shmem_id[pid*2+i], (void *)0, 0)) == -1) {
+      lua_pushnil(L);
+      return 1;
+    }
 
     // and initialize it
     parallel_(Buffer) *buf = getbuffer(pid*2+i);

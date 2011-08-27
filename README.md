@@ -1,6 +1,6 @@
 # parallel: a (simple) parallel computing framework for Lua
 
-This package provides a simple mechanism to dispatch Lua scripts 
+This package provides a simple mechanism to dispatch and run Lua code
 as independant processes and communicate via unix point-to-point 
 shared memory buffers.
 
@@ -36,7 +36,7 @@ clone this repo and then:
 $ luarocks install parallel
 ```
 
-(for info: this will first install Torch7, which is used to exchange numeric
+(for info: this will first install Torch7, which is used to exchange/serialize
 data between processes)
 
 ## Use the library
@@ -45,7 +45,11 @@ A simple example:
 
 ``` lua
 require 'torch'
+require 'lab'
 require 'parallel'
+
+-- set shared buffer size
+parallel.setSharedSize(256*1024)
 
 -- define code for workers:
 worker = [[
@@ -57,13 +61,10 @@ worker = [[
       parallel.print('Im a worker, my ID is: ' .. parallel.id)
 
       -- define a storage to receive data from top process
-      t = torch.Storage()
       for i = 1,5 do
          -- receive data
-         parallel.receive(parallel.parent, t)
-         parallel.print('received storage of size ' .. t:size())
-         parallel.print('first elets: ', t[1], t[2], t[3])
-         sys.sleep(1)
+         local t = parallel.parent:receive()
+         parallel.print('received object with norm: ', t.data:norm())
       end
 ]]
 
@@ -74,25 +75,22 @@ parallel.print('Im the parent, my ID is: ' .. parallel.id)
 nprocesses = 4
 
 -- dispatch/run each worker in a separate process
-w = {}
 for i = 1,nprocesses do
-   w[i] = parallel.run(worker)
+   parallel.run(worker)
 end
 
--- transmit data to each worker
-data = torch.Storage(100)
-for i = 1,100 do
-   data[i] = i
-end
+-- create a complex object to send to workers
+t = {name='my variable', data=lab.randn(100,100)}
 
--- receive data from each worker
+-- transmit object to each worker
+parallel.print('transmitting object with norm: ', t.data:norm())
 for i = 1,5 do
    for i = 1,nprocesses do
-      parallel.send(w[i], data)
+      parallel.children[i]:send(t)
    end
 end
 
 -- sync/terminate when all workers are done
-parallel.join(w)
+parallel.children:join()
 parallel.print('all processes terminated')
 ```
