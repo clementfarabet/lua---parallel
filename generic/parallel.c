@@ -18,6 +18,8 @@ enum {Char, Byte, Short, Int, Long, Float, Double};
 #define rdsize(pid) shmem_size[(pid)*2+1]
 
 #define parallel_wait(L)  if (getppid() == 1) { parallel_(disconnect)(L); }
+
+static small_shmem_warned = 0;
 #endif
 
 typedef struct {
@@ -96,6 +98,9 @@ static int parallel_(connect)(lua_State *L) {
       return 1;
     }
 
+    // register available size (excluding struct header)
+    shmem_size[pid*2+i] = requested_size - sizeof(parallel_(Buffer));
+
     // and link data to the segment
     shmem_data[pid*2+i] = shmat(shmem_id[pid*2+i], (void *)0, 0);
   }
@@ -162,6 +167,13 @@ static int parallel_(sendStorage)(lua_State *L) {
     buf->valid = 1;
 
   } else {
+
+    if (!small_shmem_warned) {
+      printf("<parallel> WARNING: transmitting data that is larger than \n");
+      printf("<parallel> current shared memory buffer. For more efficient \n");
+      printf("<parallel> transfers, call: parallel.setSharedSize(LARGER_SIZE) \n");
+      small_shmem_warned = 1;
+    }
 
     // transfer data in multiple shots
     real *datap = storage->data;
@@ -238,7 +250,7 @@ static int parallel_(receiveStorage)(lua_State *L) {
       // for each sub chunk of data, make a transfer
       subsize = min(buf->size, remaining);
       remaining -= subsize;
-      memcpy(storage->data, datap, subsize * sizeof(real));
+      memcpy(datap, buf->data, subsize * sizeof(real));
       datap += subsize;      
 
       // done reading

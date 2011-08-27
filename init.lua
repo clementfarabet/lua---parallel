@@ -69,7 +69,7 @@ sharedSize = 128*1024
 TMPFILE = '/tmp/lua.parallel.process.'
 
 --------------------------------------------------------------------------------
--- shared memory issues
+-- shared memory
 --------------------------------------------------------------------------------
 macos_etc = [[
 kern.sysv.shmmax=268435456
@@ -91,7 +91,7 @@ shared = function()
                print('and then rebooting')
                print('')
                print('You can also reduce the memory allocated for each new process by')
-               print('setting: parallel.sharedSize to a smaller value (note that this')
+               print('calling: parallel.setSharedSize(SIZE) to a smaller value (note that this')
                print('might result in slower data transfers)\n')
             elseif sys.OS == 'linux' then
                print('MAX SHARED MEMORY reached !')
@@ -100,7 +100,7 @@ shared = function()
                print('create N children, set your shmmax to N*' .. (sharedSize*2))
                print('')
                print('You can also reduce the memory allocated for each new process by')
-               print('setting: parallel.sharedSize to a smaller value (note that this')
+               print('calling: parallel.setSharedSize(SIZE) to a smaller value (note that this')
                print('might result in slower data transfers)\n')
             else
                print('SHARED MEMORY problem !')
@@ -109,6 +109,10 @@ shared = function()
             glob.io.write(sys.COLORS.none)
             error('shared mem')
          end
+
+setSharedSize = function(size)
+                   sharedSize = size
+                end
 
 --------------------------------------------------------------------------------
 -- start and run new process

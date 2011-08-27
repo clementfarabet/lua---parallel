@@ -2,6 +2,9 @@
 require 'torch'
 require 'parallel'
 
+-- set shared buffer size
+parallel.setSharedSize(256*1024)
+
 -- define code for workers:
 worker = [[
       -- a worker starts with a blank stack, we need to reload
@@ -12,7 +15,7 @@ worker = [[
       parallel.print('Im a worker, my ID is: ' .. parallel.id)
 
       -- define a storage to receive data from top process
-      t = torch.Storage()
+      t = torch.CharStorage()
       for i = 1,5 do
          -- receive data
          parallel.receive(parallel.parent, t)
@@ -34,16 +37,19 @@ for i = 1,nprocesses do
    w[i] = parallel.run(worker)
 end
 
--- transmit data to each worker
-data = torch.Storage(100)
-for i = 1,100 do
-   data[i] = i
+-- initialize data to send
+datasize = 1*1024
+t = torch.CharStorage(datasize)
+for i = 1,datasize do
+   t[i] = i
 end
 
--- receive data from each worker
+-- transmit data to each worker
+parallel.print('transmitting storage of size ' .. t:size())
+parallel.print('first elets: ', t[1], t[2], t[3])
 for i = 1,5 do
    for i = 1,nprocesses do
-      parallel.send(w[i], data)
+      parallel.send(w[i], t)
    end
 end
 
