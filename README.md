@@ -1,8 +1,8 @@
 # parallel: a (simple) parallel computing framework for Lua
 
 This package provides a simple mechanism to dispatch Lua scripts 
-as independant processes and communicate via a unix shared memory
-buffers.
+as independant processes and communicate via unix point-to-point 
+shared memory buffers.
 
 ## Install dependencies 
 
@@ -11,13 +11,13 @@ buffers.
 On Linux (Ubuntu > 9.04):
 
 ``` sh
-$ apt-get install gcc g++ git libreadline5-dev cmake wget libqt4-core libqt4-gui libqt4-dev
+$ apt-get install gcc g++ git libreadline5-dev cmake
 ```
 
 On Mac OS (Leopard, or more), using [Homebrew](http://mxcl.github.com/homebrew/):
 
 ``` sh
-$ brew install git readline cmake wget qt
+$ brew install git readline cmake wget
 ```
 
 2/ Lua 5.1 + Luarocks + xLua:
@@ -35,6 +35,9 @@ clone this repo and then:
 ``` sh
 $ luarocks make
 ```
+
+(for info: this will first install Torch7, which is used to exchange numeric
+data between processes)
 
 ## Use the library
 
