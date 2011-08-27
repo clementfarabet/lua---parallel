@@ -110,9 +110,8 @@ shared = function()
             error('shared mem')
          end
 
-setSharedSize = function(size)
-                   sharedSize = size
-                end
+setSharedSize = function(size) sharedSize = size end
+getSharedSize = function(size) return sharedSize end
 
 --------------------------------------------------------------------------------
 -- start and run new process
