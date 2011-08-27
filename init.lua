@@ -65,7 +65,7 @@ id = assignedid or 0
 parent = parent or {id = -1}
 processid = 1
 processes = {}
-sharedSize = 1*1024*1024
+sharedSize = 128*1024
 TMPFILE = '/tmp/lua.parallel.process.'
 
 --------------------------------------------------------------------------------
@@ -136,7 +136,12 @@ run = function(code,...)
          file:write('\ntorch.Storage().parallel.disconnect('..id..')')
          file:close()
 
-         -- (2) fork a lua process, running the code dumped above
+         -- (2) create shared memory buffer to communicate with new child
+         if not torch.Storage().parallel.create(sharedSize, processid, fileWR, fileRD) then
+            shared()
+         end
+
+         -- (3) fork a lua process, running the code dumped above
          local args = {...}
          local strargs = ''
          for i = 1,glob.select('#',...) do
@@ -144,11 +149,8 @@ run = function(code,...)
          end
          os.execute('lua ' .. tmpfile .. ' ' .. strargs .. ' &')
 
-         -- (3) register child process for future reference
+         -- (4) register child process for future reference
          processes[processid] = {file=tmpfile}
-         if not torch.Storage().parallel.create(sharedSize, processid, fileWR, fileRD) then
-            shared()
-         end
          processid = processid + 1
          return {id=processid-1, join=join}
       end
