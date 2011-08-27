@@ -63,6 +63,7 @@ glob.libparallel = nil
 --------------------------------------------------------------------------------
 id = assignedid or 0
 parent = parent or {id = -1}
+children = {}
 processid = 1
 processes = {}
 sharedSize = 128*1024
@@ -155,7 +156,9 @@ run = function(code,...)
          -- (4) register child process for future reference
          processes[processid] = {file=tmpfile}
          processid = processid + 1
-         return {id=processid-1, join=join, send=send, receive=receive}
+         child = {id=processid-1, join=join, send=send, receive=receive}
+         glob.table.insert(children, child)
+         return child
       end
 
 --------------------------------------------------------------------------------
@@ -223,3 +226,5 @@ if parent.id ~= -1 then
    parent.receive = receive
    parent.send = send
 end
+
+children.join = join

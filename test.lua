@@ -31,9 +31,8 @@ parallel.print('Im the parent, my ID is: ' .. parallel.id)
 nprocesses = 4
 
 -- dispatch/run each worker in a separate process
-w = {}
 for i = 1,nprocesses do
-   w[i] = parallel.run(worker)
+   parallel.run(worker)
 end
 
 -- create a complex object to send to workers
@@ -43,10 +42,10 @@ t = {name='my variable', data=lab.randn(10,10)}
 parallel.print('transmitting object with first elts: ', t.data[1][1], t.data[1][2], t.data[1][3])
 for i = 1,5 do
    for i = 1,nprocesses do
-      w[i]:send(t)
+      parallel.children[i]:send(t)
    end
 end
 
 -- sync/terminate when all workers are done
-parallel.join(w)
+parallel.children:join()
 parallel.print('all processes terminated')
