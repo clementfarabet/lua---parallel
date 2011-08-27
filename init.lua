@@ -65,27 +65,41 @@ id = assignedid or 0
 parent = parent or {id = -1}
 processid = 1
 processes = {}
+sharedSize = 1024*1024
+TMPFILE = '/tmp/lua.parallel.process.'
 
 --------------------------------------------------------------------------------
 -- start and run new process
 --------------------------------------------------------------------------------
 run = function(code,...)
-         local tmpfile = '/tmp/lua.parallel.process.' .. tostring(sys.clock()) .. '.' .. processid
+         -- (1) generate code for child
+         --     this involve setting its id, parent id, and making sure it connects
+         --     to the share buffer
+         local tmpfile = TMPFILE .. tostring(sys.clock()) .. '.' .. processid
          local file = io.open(tmpfile,'w')
          file:write('parallel = {}\n')
          file:write('parallel.id = ' .. processid .. '\n')
          file:write('parallel.parent = {id = ' .. id .. '}\n')
-         file:write('require "parallel"\n\n')
+         file:write('require "parallel"\n')
+         file:write('torch.Storage().parallel.connect(' 
+                    ..sharedSize..', '..id..', "'..TMPFILE..id..'-'..processid .. '")\n')
+         file:write('\n')
          file:write(code)
          file:write('\nos.execute("rm ' .. tmpfile .. '")')
          file:close()
+
+         -- (2) fork a lua process, running the code dumped above
          local args = {...}
          local strargs = ''
          for i = 1,glob.select('#',...) do
             strargs = strargs .. tostring(args[i]) .. ' '
          end
          os.execute('lua ' .. tmpfile .. ' ' .. strargs .. ' &')
-         processes[processid] = tmpfile
+
+         -- (3) register child process for future reference
+         processes[processid] = {file=tmpfile}
+         os.execute('touch ' .. TMPFILE..id..'-'..processid)
+         torch.Storage().parallel.create(sharedSize, processid, TMPFILE..id..'-'..processid)
          processid = processid + 1
          return {id=processid-1, join=join}
       end
@@ -99,7 +113,7 @@ join = function(process)
                 join(proc)
              end
           else -- a single process to join
-             local file = processes[process.id]
+             local file = processes[process.id].file
              while sys.filep(file) do
                 sys.sleep(0.01)
              end

@@ -2,19 +2,118 @@
 #define TH_GENERIC_FILE "generic/parallel.c"
 #else
 
+#ifndef _PARALLEL_GLOBALS_
+#define _PARALLEL_GLOBALS_
+static key_t shmem_key[MAX_NB_PROCESSES];
+static int shmem_id[MAX_NB_PROCESSES];
+static void *shmem_data[MAX_NB_PROCESSES];
+
+enum {Char, Byte, Short, Int, Long, Float, Double};
+
+#define getbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)];
+#endif
+
+typedef struct {
+  char beingread;
+  char valid;
+  char type;
+  long int size;
+  real data[];
+} parallel_(Buffer);
+
+static int parallel_(create)(lua_State *L) {
+  // args
+  int requested_size = lua_tonumber(L, 1);
+  int pid = lua_tonumber(L, 2);
+  const char *path = lua_tostring(L, 3);
+
+  // generate unique key
+  if ((shmem_key[pid] = ftok(path, 0)) == -1) {
+    perror("<parallel> ftok couldnt get the shared mem descriptor");
+    lua_pushnil(L);
+    return 1;
+  }
+ 
+  // create shared buffer
+  if((shmem_id[pid] = shmget(shmem_key[pid], requested_size, 0644 | IPC_CREAT)) == -1) {
+    perror("<parallel> shmget couldnt sync the shared mem segment");
+    lua_pushnil(L);
+    return 1;
+  }
+
+  // and link data to the segment
+  shmem_data[pid] = shmat(shmem_id[pid], (void *)0, 0);
+
+  // and initialize it
+  parallel_(Buffer) *buf = getbuffer(pid);
+  buf->beingread = 0;
+  buf->valid = 0;
+  buf->type = Real;
+  buf->size = 0;
+
+  // no arg returned
+  return 0;
+}
+
+static int parallel_(connect)(lua_State *L) {
+  // args
+  int requested_size = lua_tonumber(L, 1);
+  int pid = lua_tonumber(L, 2);
+  const char *path = lua_tostring(L, 3);
+
+  // generate unique key
+  if ((shmem_key[pid] = ftok(path, 0)) == -1) {
+    perror("<parallel> ftok couldnt get the shared mem descriptor");
+    lua_pushnil(L);
+    return 1;
+  }
+ 
+  // create shared buffer
+  if((shmem_id[pid] = shmget(shmem_key[pid], requested_size, 0644 | IPC_CREAT)) == -1) {
+    perror("<parallel> shmget couldnt sync the shared mem segment");
+    lua_pushnil(L);
+    return 1;
+  }
+
+  // and link data to the segment
+  shmem_data[pid] = shmat(shmem_id[pid], (void *)0, 0);
+
+  // no arg returned
+  return 0;
+}
+
 static int parallel_(sendStorage)(lua_State *L) {
   THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
   int pid = lua_tonumber(L, 2);
+  parallel_(Buffer) *buf = getbuffer(pid);
+  while (buf->beingread) {}
+  while (buf->valid) {}
+  buf->size = storage->size;
+  buf->type = Real;
+  memcpy(buf->data, storage->data, storage->size * sizeof(real));
+  buf->valid = 1;
   return 0;
 }
 
 static int parallel_(receiveStorage)(lua_State *L) {
   THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
   int pid = lua_tonumber(L, 2);
+  parallel_(Buffer) *buf = getbuffer(pid);
+  while (!buf->valid) {}
+  buf->beingread = 1;
+  if (buf->type != Real) {
+    perror("<parallel> receiving data of incorrect type");
+  }
+  THStorage_(resize)(storage, buf->size);
+  memcpy(storage->data, buf->data, storage->size * sizeof(real));
+  buf->beingread = 0;
+  buf->valid = 0;
   return 0;
 }
 
 static const struct luaL_reg parallel_(methods__) [] = {
+  {"create", parallel_(create)},
+  {"connect", parallel_(connect)},
   {"sendStorage", parallel_(sendStorage)},
   {"receiveStorage", parallel_(receiveStorage)},
   {NULL, NULL}
@@ -22,8 +121,15 @@ static const struct luaL_reg parallel_(methods__) [] = {
 
 static void parallel_(Init)(lua_State *L)
 {
+  // reg functions into lua space
   luaT_pushmetaclass(L, torch_(Storage_id));
   luaT_registeratname(L, parallel_(methods__), "parallel");
+
+  // init shared mem tables
+  int i;
+  for (i=0; i<MAX_NB_PROCESSES; i++) {
+    shmem_data[i] = NULL;
+  }
 }
 
 #endif

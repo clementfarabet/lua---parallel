@@ -5,6 +5,14 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <signal.h>
+
+#define MAX_NB_PROCESSES 1000
+
 #define torch_(NAME) TH_CONCAT_3(torch_, Real, NAME)
 #define torch_string_(NAME) TH_CONCAT_STRING_3(torch., Real, NAME)
 #define parallel_(NAME) TH_CONCAT_3(parallel_, Real, NAME)
