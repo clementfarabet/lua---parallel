@@ -182,7 +182,7 @@ static int parallel_(sendStorage)(lua_State *L) {
       while (buf->valid) { parallel_wait(L); }
 
       // for each sub chunk of data, make a transfer
-      subsize = min(buf->size, remaining);
+      subsize = min(bufsize, remaining);
       remaining -= subsize;
       memcpy(buf->data, datap, subsize * sizeof(real));
       datap += subsize;
@@ -239,7 +239,7 @@ static int parallel_(receiveStorage)(lua_State *L) {
       while (!buf->valid) { parallel_wait(L); }
 
       // for each sub chunk of data, make a transfer
-      subsize = min(buf->size, remaining);
+      subsize = min(bufsize, remaining);
       remaining -= subsize;
       memcpy(datap, buf->data, subsize * sizeof(real));
       datap += subsize;      

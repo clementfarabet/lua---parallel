@@ -19,7 +19,7 @@ worker = [[
       for i = 1,5 do
          -- receive data
          local t = parallel.parent:receive()
-         parallel.print('received object with first elts: ', t.data[1][1], t.data[1][2], t.data[1][3])
+         parallel.print('received object with norm: ', t.data:norm())
       end
 ]]
 
@@ -38,7 +38,7 @@ end
 t = {name='my variable', data=lab.randn(100,100)}
 
 -- transmit object to each worker
-parallel.print('transmitting object with first elts: ', t.data[1][1], t.data[1][2], t.data[1][3])
+parallel.print('transmitting object with norm: ', t.data:norm())
 for i = 1,5 do
    for i = 1,nprocesses do
       parallel.children[i]:send(t)
