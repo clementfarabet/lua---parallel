@@ -14,6 +14,16 @@
 
 #define MAX_NB_PROCESSES 1000
 
+#ifdef min
+#undef min
+#endif
+#define min( a, b ) ( ((a) < (b)) ? (a) : (b) )
+
+#ifdef max
+#undef max
+#endif
+#define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
+
 #define torch_(NAME) TH_CONCAT_3(torch_, Real, NAME)
 #define torch_string_(NAME) TH_CONCAT_STRING_3(torch., Real, NAME)
 #define parallel_(NAME) TH_CONCAT_3(parallel_, Real, NAME)

@@ -7,12 +7,15 @@
 static key_t shmem_key[MAX_NB_PROCESSES*2];
 static int shmem_id[MAX_NB_PROCESSES*2];
 static void *shmem_data[MAX_NB_PROCESSES*2];
+static int shmem_size[MAX_NB_PROCESSES*2];
 
 enum {Char, Byte, Short, Int, Long, Float, Double};
 
-#define getbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)];
-#define wrbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)*2];
-#define rdbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)*2+1];
+#define getbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)]
+#define wrbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)*2]
+#define rdbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)*2+1]
+#define wrsize(pid) shmem_size[(pid)*2]
+#define rdsize(pid) shmem_size[(pid)*2+1]
 
 #define parallel_wait(L)  if (getppid() == 1) { parallel_(disconnect)(L); }
 #endif
@@ -48,6 +51,9 @@ static int parallel_(create)(lua_State *L) {
       lua_pushnil(L);
       return 1;
     }
+
+    // register available size (excluding struct header)
+    shmem_size[pid*2+i] = requested_size - sizeof(parallel_(Buffer));
 
     // and link data to the segment
     shmem_data[pid*2+i] = shmat(shmem_id[pid*2+i], (void *)0, 0);
@@ -127,31 +133,121 @@ static int parallel_(disconnect)(lua_State *L) {
 }
 
 static int parallel_(sendStorage)(lua_State *L) {
+  // get args
   THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
   int pid = lua_tonumber(L, 2);
+
+  // get handle on write buffer
   parallel_(Buffer) *buf = wrbuffer(pid);
+  int bufsize = wrsize(pid) / (int)sizeof(real);
+
+  // wait for write buffer to be available
+  // this implies two things: it is not being read, and the data
+  // in it is not valid anymore (i.e. it has been read already)
   while (buf->beingread) { parallel_wait(L); }
   while (buf->valid) { parallel_wait(L); }
+
+  // set the size and type of the data about to be written
   buf->size = storage->size;
   buf->type = Real;
-  memcpy(buf->data, storage->data, storage->size * sizeof(real));
-  buf->valid = 1;
+
+  // if the data to be sent fits in the shared mem, it is
+  // sent in one shot, else, it is multiplexed
+  if (storage->size < bufsize) {
+
+    // transfer data in a single shot, as it fits in shared buffer
+    memcpy(buf->data, storage->data, storage->size * sizeof(real));
+
+    // data is now valid (to be read)
+    buf->valid = 1;
+
+  } else {
+
+    // transfer data in multiple shots
+    real *datap = storage->data;
+    int remaining = storage->size;
+    int subsize;
+    while (remaining) {
+      // we repeat the procedure above, and wait for the data
+      // to be fully read by the child before writing the next chunk
+      while (buf->beingread) { parallel_wait(L); }
+      while (buf->valid) { parallel_wait(L); }
+
+      // for each sub chunk of data, make a transfer
+      subsize = min(buf->size, remaining);
+      remaining -= subsize;
+      memcpy(buf->data, datap, subsize * sizeof(real));
+      datap += subsize;
+
+      // the chunk is now valid
+      buf->valid = 1;
+    }
+
+  }
+
+  // done
   return 0;
 }
 
 static int parallel_(receiveStorage)(lua_State *L) {
+  // get args
   THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
   int pid = lua_tonumber(L, 2);
+
+  // get handle on read buffer
   parallel_(Buffer) *buf = rdbuffer(pid);
+  int bufsize = rdsize(pid) / (int)sizeof(real);
+
+  // wait for data to become valid in buffer
   while (!buf->valid) { parallel_wait(L); }
+
+  // as soon as it is valid, lock the buffer
   buf->beingread = 1;
+
+  // the type of data being read should match the expected one
   if (buf->type != Real) {
     perror("<parallel> receiving data of incorrect type");
   }
+
+  // resize destination storage
   THStorage_(resize)(storage, buf->size);
-  memcpy(storage->data, buf->data, storage->size * sizeof(real));
-  buf->beingread = 0;
-  buf->valid = 0;
+
+  // if the data being read fits in the shared mem, it was
+  // sent in one shot, else, it is being multiplexed
+  if (storage->size < bufsize) {
+
+    // copy data from buffer
+    memcpy(storage->data, buf->data, storage->size * sizeof(real));
+
+    // data has now been fully read, and is thefore not valid
+    // anymore
+    buf->beingread = 0;
+    buf->valid = 0;
+
+  } else {
+
+    // read data in multiple shots
+    real *datap = storage->data;
+    int remaining = storage->size;
+    int subsize;
+    while (remaining) {
+      // repeat the lock/unlock procedure
+      while (!buf->valid) { parallel_wait(L); }
+      buf->beingread = 1;
+
+      // for each sub chunk of data, make a transfer
+      subsize = min(buf->size, remaining);
+      remaining -= subsize;
+      memcpy(storage->data, datap, subsize * sizeof(real));
+      datap += subsize;      
+
+      // done reading
+      buf->beingread = 0;
+      buf->valid = 0;
+    }
+
+  }
+
   return 0;
 }
 
