@@ -33,7 +33,7 @@ $ make install PREFIX=/usr/local
 clone this repo and then:
 
 ``` sh
-$ luarocks make
+$ luarocks install parallel
 ```
 
 (for info: this will first install Torch7, which is used to exchange numeric
