@@ -1,4 +1,4 @@
-# parallel: a (simple) parallel computing framework for Lua
+# para||el: a (simple) parallel computing framework for Lua
 
 This package provides a simple mechanism to dispatch and run Lua code
 as independant processes and communicate via unix point-to-point 
