@@ -13,6 +13,8 @@ enum {Char, Byte, Short, Int, Long, Float, Double};
 #define getbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)];
 #define wrbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)*2];
 #define rdbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)*2+1];
+
+#define parallel_wait(L)  if (getppid() == 1) { parallel_(disconnect)(L); }
 #endif
 
 typedef struct {
@@ -96,12 +98,39 @@ static int parallel_(connect)(lua_State *L) {
   return 0;
 }
 
+static int parallel_(disconnect)(lua_State *L) {
+  // args
+  int pid = lua_tonumber(L, 2);
+
+  // who to disconnect ?
+  int i;
+  if (pid == -1) {
+    for (i=0; i<MAX_NB_PROCESSES*2; i++) {
+      if (shmem_data[i]) {
+        shmdt(shmem_data[i]);
+        shmctl(shmem_id[i], IPC_RMID, NULL);
+        shmem_data[i] = NULL;
+      }
+    }
+  } else {
+    for (i=0; i<2; i++) {
+      if (shmem_data[pid*2+i]) {
+        shmdt(shmem_data[pid*2+i]);
+        shmctl(shmem_id[pid*2+i], IPC_RMID, NULL);
+        shmem_data[pid*2+i] = NULL;
+      }
+    }
+  }
+
+  return 0;
+}
+
 static int parallel_(sendStorage)(lua_State *L) {
   THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
   int pid = lua_tonumber(L, 2);
   parallel_(Buffer) *buf = wrbuffer(pid);
-  while (buf->beingread) {}
-  while (buf->valid) {}
+  while (buf->beingread) { parallel_wait(L); }
+  while (buf->valid) { parallel_wait(L); }
   buf->size = storage->size;
   buf->type = Real;
   memcpy(buf->data, storage->data, storage->size * sizeof(real));
@@ -113,7 +142,7 @@ static int parallel_(receiveStorage)(lua_State *L) {
   THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
   int pid = lua_tonumber(L, 2);
   parallel_(Buffer) *buf = rdbuffer(pid);
-  while (!buf->valid) {}
+  while (!buf->valid) { parallel_wait(L); }
   buf->beingread = 1;
   if (buf->type != Real) {
     perror("<parallel> receiving data of incorrect type");
@@ -128,6 +157,7 @@ static int parallel_(receiveStorage)(lua_State *L) {
 static const struct luaL_reg parallel_(methods__) [] = {
   {"create", parallel_(create)},
   {"connect", parallel_(connect)},
+  {"disconnect", parallel_(disconnect)},
   {"sendStorage", parallel_(sendStorage)},
   {"receiveStorage", parallel_(receiveStorage)},
   {NULL, NULL}

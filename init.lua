@@ -91,6 +91,7 @@ run = function(code,...)
          file:write('\n')
          file:write(code)
          file:write('\nos.execute("rm ' .. tmpfile .. '")')
+         file:write('\ntorch.Storage().parallel.disconnect('..id..')')
          file:close()
 
          -- (2) fork a lua process, running the code dumped above
