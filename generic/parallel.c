@@ -17,13 +17,13 @@ enum {Char, Byte, Short, Int, Long, Float, Double};
 #define wrsize(pid) shmem_size[(pid)*2]
 #define rdsize(pid) shmem_size[(pid)*2+1]
 
-#define parallel_wait(L)  if (getppid() == 1) { parallel_(disconnect)(L); }
+//#define parallel_wait(L)  if (getppid() == 1) { parallel_(disconnect)(L); }
+#define parallel_wait(L)  usleep(1)
 
 static small_shmem_warned = 0;
 #endif
 
 typedef struct {
-  char beingread;
   char valid;
   char type;
   long int size;
@@ -62,7 +62,6 @@ static int parallel_(create)(lua_State *L) {
 
     // and initialize it
     parallel_(Buffer) *buf = getbuffer(pid*2+i);
-    buf->beingread = 0;
     buf->valid = 0;
     buf->type = Real;
     buf->size = 0;
@@ -147,9 +146,7 @@ static int parallel_(sendStorage)(lua_State *L) {
   int bufsize = wrsize(pid) / (int)sizeof(real);
 
   // wait for write buffer to be available
-  // this implies two things: it is not being read, and the data
-  // in it is not valid anymore (i.e. it has been read already)
-  while (buf->beingread) { parallel_wait(L); }
+  // this implies that the data is not valid anymore (i.e. it has been read already)
   while (buf->valid) { parallel_wait(L); }
 
   // set the size and type of the data about to be written
@@ -182,7 +179,6 @@ static int parallel_(sendStorage)(lua_State *L) {
     while (remaining) {
       // we repeat the procedure above, and wait for the data
       // to be fully read by the child before writing the next chunk
-      while (buf->beingread) { parallel_wait(L); }
       while (buf->valid) { parallel_wait(L); }
 
       // for each sub chunk of data, make a transfer
@@ -213,9 +209,6 @@ static int parallel_(receiveStorage)(lua_State *L) {
   // wait for data to become valid in buffer
   while (!buf->valid) { parallel_wait(L); }
 
-  // as soon as it is valid, lock the buffer
-  buf->beingread = 1;
-
   // the type of data being read should match the expected one
   if (buf->type != Real) {
     perror("<parallel> receiving data of incorrect type");
@@ -233,7 +226,6 @@ static int parallel_(receiveStorage)(lua_State *L) {
 
     // data has now been fully read, and is thefore not valid
     // anymore
-    buf->beingread = 0;
     buf->valid = 0;
 
   } else {
@@ -245,7 +237,6 @@ static int parallel_(receiveStorage)(lua_State *L) {
     while (remaining) {
       // repeat the lock/unlock procedure
       while (!buf->valid) { parallel_wait(L); }
-      buf->beingread = 1;
 
       // for each sub chunk of data, make a transfer
       subsize = min(buf->size, remaining);
@@ -254,7 +245,6 @@ static int parallel_(receiveStorage)(lua_State *L) {
       datap += subsize;      
 
       // done reading
-      buf->beingread = 0;
       buf->valid = 0;
     }
 

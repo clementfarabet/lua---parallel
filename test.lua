@@ -4,7 +4,7 @@ require 'lab'
 require 'parallel'
 
 -- set shared buffer size
-parallel.setSharedSize(8*1024)
+parallel.setSharedSize(256*1024)
 
 -- define code for workers:
 worker = [[
@@ -20,7 +20,6 @@ worker = [[
          -- receive data
          local t = parallel.parent:receive()
          parallel.print('received object with first elts: ', t.data[1][1], t.data[1][2], t.data[1][3])
-         sys.sleep(0.1)
       end
 ]]
 
@@ -36,7 +35,7 @@ for i = 1,nprocesses do
 end
 
 -- create a complex object to send to workers
-t = {name='my variable', data=lab.randn(10,10)}
+t = {name='my variable', data=lab.randn(100,100)}
 
 -- transmit object to each worker
 parallel.print('transmitting object with first elts: ', t.data[1][1], t.data[1][2], t.data[1][3])
