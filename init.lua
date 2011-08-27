@@ -228,11 +228,19 @@ print = function(...)
         end
 
 --------------------------------------------------------------------------------
--- init some vars for children processes
+-- reset = forget all children, go back to initial state
+-- TODO: this is the right place to properly terminate children
 --------------------------------------------------------------------------------
-if parent.id ~= -1 then
-   parent.receive = receive
-   parent.send = send
-end
-
-children.join = join
+reset = function()
+           id = assignedid or 0
+           parent = parent or {id = -1}
+           children = {}
+           processid = 1
+           processes = {}
+           if parent.id ~= -1 then
+              parent.receive = receive
+              parent.send = send
+           end
+           children.join = join
+        end
+reset()

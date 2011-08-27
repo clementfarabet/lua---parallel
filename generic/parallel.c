@@ -20,7 +20,8 @@ enum {Char, Byte, Short, Int, Long, Float, Double};
 //#define parallel_wait(L)  if (getppid() == 1) { parallel_(disconnect)(L); }
 #define parallel_wait(L)  usleep(1)
 
-static small_shmem_warned = 0;
+static int small_shmem_warned = 0;
+static int verbose = 0;
 #endif
 
 typedef struct {
@@ -37,9 +38,6 @@ static int parallel_(create)(lua_State *L) {
   const char *paths[2];
   paths[0] = lua_tostring(L, 3);
   paths[1] = lua_tostring(L, 4);
-
-  // message
-  printf("<parallel#000>  creating shared memory with process %d\n", pid);
 
   // initialize 2 shared buffers: one for RDs, one for WRs
   int i;
@@ -171,7 +169,7 @@ static int parallel_(sendStorage)(lua_State *L) {
 
   } else {
 
-    if (!small_shmem_warned) {
+    if (!small_shmem_warned && verbose) {
       printf("<parallel> WARNING: transmitting data that is larger than \n");
       printf("<parallel> current shared memory buffer. For more efficient \n");
       printf("<parallel> transfers, call: parallel.setSharedSize(LARGER_SIZE) \n");
