@@ -4,13 +4,15 @@
 
 #ifndef _PARALLEL_GLOBALS_
 #define _PARALLEL_GLOBALS_
-static key_t shmem_key[MAX_NB_PROCESSES];
-static int shmem_id[MAX_NB_PROCESSES];
-static void *shmem_data[MAX_NB_PROCESSES];
+static key_t shmem_key[MAX_NB_PROCESSES*2];
+static int shmem_id[MAX_NB_PROCESSES*2];
+static void *shmem_data[MAX_NB_PROCESSES*2];
 
 enum {Char, Byte, Short, Int, Long, Float, Double};
 
 #define getbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)];
+#define wrbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)*2];
+#define rdbuffer(pid) (parallel_(Buffer) *)shmem_data[(pid)*2+1];
 #endif
 
 typedef struct {
@@ -25,31 +27,37 @@ static int parallel_(create)(lua_State *L) {
   // args
   int requested_size = lua_tonumber(L, 1);
   int pid = lua_tonumber(L, 2);
-  const char *path = lua_tostring(L, 3);
+  const char *paths[2];
+  paths[0] = lua_tostring(L, 3);
+  paths[1] = lua_tostring(L, 4);
 
-  // generate unique key
-  if ((shmem_key[pid] = ftok(path, 0)) == -1) {
-    perror("<parallel> ftok couldnt get the shared mem descriptor");
-    lua_pushnil(L);
-    return 1;
+  // initialize 2 shared buffers: one for RDs, one for WRs
+  int i;
+  for (i=0; i<2; i++) {
+    // generate unique key
+    if ((shmem_key[pid*2+i] = ftok(paths[i], 0)) == -1) {
+      perror("<parallel> ftok couldnt get the shared mem descriptor");
+      lua_pushnil(L);
+      return 1;
+    }
+
+    // create shared buffer
+    if((shmem_id[pid*2+i] = shmget(shmem_key[pid*2+i], requested_size, 0644 | IPC_CREAT)) == -1) {
+      perror("<parallel> shmget couldnt sync the shared mem segment");
+      lua_pushnil(L);
+      return 1;
+    }
+
+    // and link data to the segment
+    shmem_data[pid*2+i] = shmat(shmem_id[pid*2+i], (void *)0, 0);
+
+    // and initialize it
+    parallel_(Buffer) *buf = getbuffer(pid*2+i);
+    buf->beingread = 0;
+    buf->valid = 0;
+    buf->type = Real;
+    buf->size = 0;
   }
- 
-  // create shared buffer
-  if((shmem_id[pid] = shmget(shmem_key[pid], requested_size, 0644 | IPC_CREAT)) == -1) {
-    perror("<parallel> shmget couldnt sync the shared mem segment");
-    lua_pushnil(L);
-    return 1;
-  }
-
-  // and link data to the segment
-  shmem_data[pid] = shmat(shmem_id[pid], (void *)0, 0);
-
-  // and initialize it
-  parallel_(Buffer) *buf = getbuffer(pid);
-  buf->beingread = 0;
-  buf->valid = 0;
-  buf->type = Real;
-  buf->size = 0;
 
   // no arg returned
   return 0;
@@ -59,24 +67,30 @@ static int parallel_(connect)(lua_State *L) {
   // args
   int requested_size = lua_tonumber(L, 1);
   int pid = lua_tonumber(L, 2);
-  const char *path = lua_tostring(L, 3);
+  const char *paths[2];
+  paths[0] = lua_tostring(L, 3);
+  paths[1] = lua_tostring(L, 4);
 
-  // generate unique key
-  if ((shmem_key[pid] = ftok(path, 0)) == -1) {
-    perror("<parallel> ftok couldnt get the shared mem descriptor");
-    lua_pushnil(L);
-    return 1;
-  }
- 
-  // create shared buffer
-  if((shmem_id[pid] = shmget(shmem_key[pid], requested_size, 0644 | IPC_CREAT)) == -1) {
-    perror("<parallel> shmget couldnt sync the shared mem segment");
-    lua_pushnil(L);
-    return 1;
-  }
+  // connect to 2 shared buffers: one for RDs, one for WRs
+  int i;
+  for (i=0; i<2; i++) {
+    // generate unique key
+    if ((shmem_key[pid*2+i] = ftok(paths[i], 0)) == -1) {
+      perror("<parallel> ftok couldnt get the shared mem descriptor");
+      lua_pushnil(L);
+      return 1;
+    }
 
-  // and link data to the segment
-  shmem_data[pid] = shmat(shmem_id[pid], (void *)0, 0);
+    // create shared buffer
+    if((shmem_id[pid*2+i] = shmget(shmem_key[pid*2+i], requested_size, 0644 | IPC_CREAT)) == -1) {
+      perror("<parallel> shmget couldnt sync the shared mem segment");
+      lua_pushnil(L);
+      return 1;
+    }
+
+    // and link data to the segment
+    shmem_data[pid*2+i] = shmat(shmem_id[pid*2+i], (void *)0, 0);
+  }
 
   // no arg returned
   return 0;
@@ -85,7 +99,7 @@ static int parallel_(connect)(lua_State *L) {
 static int parallel_(sendStorage)(lua_State *L) {
   THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
   int pid = lua_tonumber(L, 2);
-  parallel_(Buffer) *buf = getbuffer(pid);
+  parallel_(Buffer) *buf = wrbuffer(pid);
   while (buf->beingread) {}
   while (buf->valid) {}
   buf->size = storage->size;
@@ -98,7 +112,7 @@ static int parallel_(sendStorage)(lua_State *L) {
 static int parallel_(receiveStorage)(lua_State *L) {
   THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
   int pid = lua_tonumber(L, 2);
-  parallel_(Buffer) *buf = getbuffer(pid);
+  parallel_(Buffer) *buf = rdbuffer(pid);
   while (!buf->valid) {}
   buf->beingread = 1;
   if (buf->type != Real) {
@@ -127,7 +141,7 @@ static void parallel_(Init)(lua_State *L)
 
   // init shared mem tables
   int i;
-  for (i=0; i<MAX_NB_PROCESSES; i++) {
+  for (i=0; i<MAX_NB_PROCESSES*2; i++) {
     shmem_data[i] = NULL;
   }
 }

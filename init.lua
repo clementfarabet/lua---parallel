@@ -65,13 +65,18 @@ id = assignedid or 0
 parent = parent or {id = -1}
 processid = 1
 processes = {}
-sharedSize = 1024*1024
+sharedSize = 8*1024
 TMPFILE = '/tmp/lua.parallel.process.'
 
 --------------------------------------------------------------------------------
 -- start and run new process
 --------------------------------------------------------------------------------
 run = function(code,...)
+         -- (0) generate dummy files for shared buffers
+         local fileWR = TMPFILE..id..'-'..processid
+         local fileRD = TMPFILE..processid..'-'..id
+         os.execute('touch ' .. fileRD .. ' ' .. fileWR)
+
          -- (1) generate code for child
          --     this involve setting its id, parent id, and making sure it connects
          --     to the share buffer
@@ -82,7 +87,7 @@ run = function(code,...)
          file:write('parallel.parent = {id = ' .. id .. '}\n')
          file:write('require "parallel"\n')
          file:write('torch.Storage().parallel.connect(' 
-                    ..sharedSize..', '..id..', "'..TMPFILE..id..'-'..processid .. '")\n')
+                    ..sharedSize..', '..id..', "'..fileRD..'", "'..fileWR..'")\n')
          file:write('\n')
          file:write(code)
          file:write('\nos.execute("rm ' .. tmpfile .. '")')
@@ -98,8 +103,7 @@ run = function(code,...)
 
          -- (3) register child process for future reference
          processes[processid] = {file=tmpfile}
-         os.execute('touch ' .. TMPFILE..id..'-'..processid)
-         torch.Storage().parallel.create(sharedSize, processid, TMPFILE..id..'-'..processid)
+         torch.Storage().parallel.create(sharedSize, processid, fileWR, fileRD)
          processid = processid + 1
          return {id=processid-1, join=join}
       end
