@@ -1,9 +1,10 @@
 
 require 'torch'
+require 'lab'
 require 'parallel'
 
 -- set shared buffer size
-parallel.setSharedSize(256*1024)
+parallel.setSharedSize(8*1024)
 
 -- define code for workers:
 worker = [[
@@ -15,12 +16,10 @@ worker = [[
       parallel.print('Im a worker, my ID is: ' .. parallel.id)
 
       -- define a storage to receive data from top process
-      t = torch.CharStorage()
       for i = 1,5 do
          -- receive data
-         parallel.receive(parallel.parent, t)
-         parallel.print('received storage of size ' .. t:size())
-         parallel.print('first elets: ', t[1], t[2], t[3])
+         local t = parallel.parent:receive()
+         parallel.print('received object with first elts: ', t.data[1][1], t.data[1][2], t.data[1][3])
          sys.sleep(0.1)
       end
 ]]
@@ -37,19 +36,14 @@ for i = 1,nprocesses do
    w[i] = parallel.run(worker)
 end
 
--- initialize data to send
-datasize = 1*1024
-t = torch.CharStorage(datasize)
-for i = 1,datasize do
-   t[i] = i
-end
+-- create a complex object to send to workers
+t = {name='my variable', data=lab.randn(10,10)}
 
--- transmit data to each worker
-parallel.print('transmitting storage of size ' .. t:size())
-parallel.print('first elets: ', t[1], t[2], t[3])
+-- transmit object to each worker
+parallel.print('transmitting object with first elts: ', t.data[1][1], t.data[1][2], t.data[1][3])
 for i = 1,5 do
    for i = 1,nprocesses do
-      parallel.send(w[i], t)
+      w[i]:send(t)
    end
 end
 

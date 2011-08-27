@@ -156,7 +156,7 @@ run = function(code,...)
          -- (4) register child process for future reference
          processes[processid] = {file=tmpfile}
          processid = processid + 1
-         return {id=processid-1, join=join}
+         return {id=processid-1, join=join, send=send, receive=receive}
       end
 
 --------------------------------------------------------------------------------
@@ -179,10 +179,16 @@ join = function(process)
 -- transmit data
 --------------------------------------------------------------------------------
 send = function(process, object)
-          if torch.typename(object):find('torch.*Storage') then
+          if torch.typename(object) and torch.typename(object):find('torch.*Storage') then
+             -- raw transfer ot storage
              object.parallel.sendStorage(object,process.id)
           else
-             print('<parallel.send> unsupported type')
+             -- serialize data first
+             local f = torch.MemoryFile()
+             f:writeObject(object)
+             local s = f:storage()
+             -- then transmit raw storage
+             send(process, s)
           end
        end
 
@@ -190,11 +196,18 @@ send = function(process, object)
 -- receive data
 --------------------------------------------------------------------------------
 receive = function(process, object)
-             if torch.typename(object):find('torch.*Storage') then
+             if object and torch.typename(object) and torch.typename(object):find('torch.*Storage') then
+                -- raw receive of storage
                 object.parallel.receiveStorage(object,process.id)
              else
-                print('<parallel.receive> unsupported type')
+                -- first receive raw storage
+                local s = torch.CharStorage()
+                receive(process, s)
+                -- then un-serialize data object
+                local f = torch.MemoryFile(s)
+                object = f:readObject()
              end
+             return object
           end
 
 --------------------------------------------------------------------------------
@@ -203,3 +216,11 @@ receive = function(process, object)
 print = function(...)
            glob.print('<parallel#' .. glob.string.format('%03d',id) .. '>', ...)
         end
+
+--------------------------------------------------------------------------------
+-- init some vars for children processes
+--------------------------------------------------------------------------------
+if parent.id ~= -1 then
+   parent.receive = receive
+   parent.send = send
+end
