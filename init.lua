@@ -199,6 +199,7 @@ send = function(process, object)
              local s = f:storage()
              -- then transmit raw storage
              send(process, s)
+             f:close()
           end
        end
 
@@ -216,6 +217,7 @@ receive = function(process, object)
                 -- then un-serialize data object
                 local f = torch.MemoryFile(s)
                 object = f:readObject()
+                f:close()
              end
              return object
           end
