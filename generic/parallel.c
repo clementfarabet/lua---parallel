@@ -115,7 +115,7 @@ static int parallel_(connect)(lua_State *L) {
 
 static int parallel_(disconnect)(lua_State *L) {
   // args
-  int pid = lua_tonumber(L, 2);
+  int pid = lua_tonumber(L, 1);
 
   // who to disconnect ?
   int i;

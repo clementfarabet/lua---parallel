@@ -179,9 +179,8 @@ join = function(process)
              end
           else -- a single process to join
              local file = processes[process.id].file
-             while sys.filep(file) do
-                sys.sleep(0.01)
-             end
+             while sys.filep(file) do sys.usleep(1) end
+             torch.Storage().parallel.disconnect(process.id)
           end
        end
 
@@ -227,6 +226,23 @@ receive = function(process, object)
 --------------------------------------------------------------------------------
 print = function(...)
            glob.print('<parallel#' .. glob.string.format('%03d',id) .. '>', ...)
+        end
+
+--------------------------------------------------------------------------------
+-- system tools
+--------------------------------------------------------------------------------
+ipcrm = function ()
+           local s = sys.execute('ipcs -m')
+           local start = 1
+           local key = true
+           while key do
+              if sys.OS == 'macos' then
+                 _,start,key = s:find('m%s*(%d+)%s*', start)
+              else
+                 break
+              end
+              if key then sys.execute('ipcrm -m ' .. key) end
+           end
         end
 
 --------------------------------------------------------------------------------
