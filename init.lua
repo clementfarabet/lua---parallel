@@ -188,17 +188,30 @@ join = function(process)
 -- transmit data
 --------------------------------------------------------------------------------
 send = function(process, object)
-          if torch.typename(object) and torch.typename(object):find('torch.*Storage') then
-             -- raw transfer ot storage
-             object.parallel.sendStorage(object,process.id)
+          if process[1] then -- a list of processes to send data to
+             if not (torch.typename(object) and torch.typename(object):find('torch.*Storage')) then
+                -- serialize data once for all transfers
+                local f = torch.MemoryFile()
+                f:writeObject(object)
+                object = f:storage()
+                f:close()
+             end
+             for _,proc in ipairs(process) do
+                send(proc, object)
+             end
           else
-             -- serialize data first
-             local f = torch.MemoryFile()
-             f:writeObject(object)
-             local s = f:storage()
-             -- then transmit raw storage
-             send(process, s)
-             f:close()
+             if torch.typename(object) and torch.typename(object):find('torch.*Storage') then
+                -- raw transfer ot storage
+                object.parallel.sendStorage(object,process.id)
+             else
+                -- serialize data first
+                local f = torch.MemoryFile()
+                f:writeObject(object)
+                local s = f:storage()
+                -- then transmit raw storage
+                send(process, s)
+                f:close()
+             end
           end
        end
 
@@ -260,5 +273,6 @@ reset = function()
               parent.send = send
            end
            children.join = join
+           children.send = send
         end
 reset()
