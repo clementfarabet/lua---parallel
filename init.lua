@@ -192,6 +192,7 @@ send = function(process, object)
              if not (torch.typename(object) and torch.typename(object):find('torch.*Storage')) then
                 -- serialize data once for all transfers
                 local f = torch.MemoryFile()
+                f:binary()
                 f:writeObject(object)
                 object = f:storage()
                 f:close()
@@ -206,6 +207,7 @@ send = function(process, object)
              else
                 -- serialize data first
                 local f = torch.MemoryFile()
+                f:binary()
                 f:writeObject(object)
                 local s = f:storage()
                 -- then transmit raw storage
@@ -228,6 +230,7 @@ receive = function(process, object)
                 receive(process, s)
                 -- then un-serialize data object
                 local f = torch.MemoryFile(s)
+                f:binary()
                 object = f:readObject()
                 f:close()
              end
