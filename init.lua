@@ -188,7 +188,8 @@ join = function(process)
 -- transmit data
 --------------------------------------------------------------------------------
 send = function(process, object)
-          if process[1] then -- a list of processes to send data to
+          if process[1] then 
+             -- a list of processes to send data to
              if not (torch.typename(object) and torch.typename(object):find('torch.*Storage')) then
                 -- serialize data once for all transfers
                 local f = torch.MemoryFile()
@@ -197,9 +198,13 @@ send = function(process, object)
                 object = f:storage()
                 f:close()
              end
+             -- create list of IDs
+             local ids = {}
              for _,proc in ipairs(process) do
-                send(proc, object)
+                glob.table.insert(ids, proc.id)
              end
+             -- broadcast storage to all processes
+             object.parallel.broadcastStorage(object, ids)
           else
              if torch.typename(object) and torch.typename(object):find('torch.*Storage') then
                 -- raw transfer ot storage
@@ -221,18 +226,47 @@ send = function(process, object)
 -- receive data
 --------------------------------------------------------------------------------
 receive = function(process, object)
-             if object and torch.typename(object) and torch.typename(object):find('torch.*Storage') then
-                -- raw receive of storage
-                object.parallel.receiveStorage(object,process.id)
+             if process[1] then 
+                -- create list of IDs
+                local ids = {}
+                for _,proc in ipairs(process) do
+                   glob.table.insert(ids, proc.id)
+                end
+                -- receive all objects
+                if object and object[1] and torch.typename(object[1]) and torch.typename(object[1]):find('torch.*Storage') then
+                   -- user objects are storages, just fill them
+                   local objects = object
+                   object.parallel.receiveStorages(objects, ids)
+                else
+                   -- receive raw storages
+                   local storages = {}
+                   for i = 1,#ids do
+                      storages[i] = torch.CharStorage()
+                   end
+                   storages[1].parallel.receiveStorages(storages, ids)
+                   -- then un-serialize data objects
+                   object = object or {}
+                   for i = 1,#ids do
+                      local f = torch.MemoryFile(storages[i])
+                      f:binary()
+                      object[i] = f:readObject()
+                      f:close()
+                   end
+                end
              else
-                -- first receive raw storage
-                local s = torch.CharStorage()
-                receive(process, s)
-                -- then un-serialize data object
-                local f = torch.MemoryFile(s)
-                f:binary()
-                object = f:readObject()
-                f:close()
+                if object and torch.typename(object) and torch.typename(object):find('torch.*Storage') then
+                   -- raw receive of storage
+                   object.parallel.receiveStorage(object,process.id)
+                else
+                   -- first receive raw storage
+                   local s = torch.CharStorage()
+                   receive(process, s)
+                   -- then un-serialize data object
+                   local f = torch.MemoryFile(s)
+                   f:binary()
+                   object = f:readObject()
+                   f:close()
+                end
              end
              return object
           end
@@ -277,5 +311,6 @@ reset = function()
            end
            children.join = join
            children.send = send
+           children.receive = receive
         end
 reset()

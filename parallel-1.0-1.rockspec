@@ -40,6 +40,7 @@ build = {
 
          set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
+         set (CMAKE_C_FLAGS "-fopenmp")
          include_directories (${TORCH_INCLUDE_DIR} ${PROJECT_SOURCE_DIR})
          add_library (parallel SHARED parallel.c)
          link_directories (${TORCH_LIBRARY_DIR})

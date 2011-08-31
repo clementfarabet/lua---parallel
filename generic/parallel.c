@@ -140,11 +140,7 @@ static int parallel_(disconnect)(lua_State *L) {
   return 0;
 }
 
-static int parallel_(sendStorage)(lua_State *L) {
-  // get args
-  THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
-  int pid = lua_tonumber(L, 2);
-
+static void parallel_(sendStorageC)(THStorage *storage, int pid) {
   // get handle on write buffer
   parallel_(Buffer) *buf = wrbuffer(pid);
   int bufsize = wrsize(pid) / (int)sizeof(real);
@@ -196,16 +192,53 @@ static int parallel_(sendStorage)(lua_State *L) {
     }
 
   }
+}
+
+static int parallel_(broadcastStorage)(lua_State *L) {
+  // get args
+  THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
+
+  // alloc raw array for openmp loop
+  int npids = lua_objlen(L, 2);
+  int *pids = malloc(npids * sizeof(int));
+
+  // iterate over table
+  lua_pushnil(L);
+  int i = 0;
+  while(lua_next(L, 2)) {
+    if(lua_isnumber(L, -1)) {
+      pids[i++] = lua_tonumber(L, -1);
+    }
+    lua_pop(L, 1);
+  }
+
+  // now fork all transfers, with one thread per channel
+  int ompthreads = omp_get_num_threads();
+  omp_set_num_threads(npids);
+#pragma omp parallel for private(i)
+  for (i=0; i<npids; i++) {
+    parallel_(sendStorageC)(storage, pids[i]);
+  }
+  omp_set_num_threads(ompthreads);
+
+  // done
+  free(pids);
+  return 0;
+}
+
+static int parallel_(sendStorage)(lua_State *L) {
+  // get args
+  THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
+  int pid = lua_tonumber(L, 2);
+
+  // send storage to pid
+  parallel_(sendStorageC)(storage, pid);
 
   // done
   return 0;
 }
 
-static int parallel_(receiveStorage)(lua_State *L) {
-  // get args
-  THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
-  int pid = lua_tonumber(L, 2);
-
+static int parallel_(receiveStorageC)(THStorage *storage, int pid) {
   // get handle on read buffer
   parallel_(Buffer) *buf = rdbuffer(pid);
   int bufsize = rdsize(pid) / (int)sizeof(real);
@@ -257,12 +290,63 @@ static int parallel_(receiveStorage)(lua_State *L) {
   return 0;
 }
 
+static int parallel_(receiveStorages)(lua_State *L) {
+  // get nb of pids
+  int npids = lua_objlen(L, 1);
+
+  // get all storages
+  THStorage **storages = malloc(npids * sizeof(THStorage *));
+  lua_pushnil(L);
+  int i = 0;
+  while(lua_next(L, 1)) {
+    storages[i++] = luaT_checkudata(L, -1, torch_(Storage_id));
+    lua_pop(L, 1);
+  }
+
+  // get all pids
+  int *pids = malloc(npids * sizeof(int));
+  lua_pushnil(L);
+  i = 0;
+  while(lua_next(L, 2)) {
+    pids[i++] = lua_tonumber(L, -1);
+    lua_pop(L, 1);
+  }
+
+  // now fork all receives, with one thread per channel
+  int ompthreads = omp_get_num_threads();
+  omp_set_num_threads(npids);
+  //#pragma omp parallel for private(i)
+  for (i=0; i<npids; i++) {
+    parallel_(receiveStorageC)(storages[i], pids[i]);
+  }
+  omp_set_num_threads(ompthreads);
+
+  // done
+  free(storages);
+  free(pids);
+  return 0;
+}
+
+static int parallel_(receiveStorage)(lua_State *L) {
+  // get args
+  THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
+  int pid = lua_tonumber(L, 2);
+
+  // receive storage from pid
+  parallel_(receiveStorageC)(storage, pid);
+
+  // done
+  return 0;
+}
+
 static const struct luaL_reg parallel_(methods__) [] = {
   {"create", parallel_(create)},
   {"connect", parallel_(connect)},
   {"disconnect", parallel_(disconnect)},
   {"sendStorage", parallel_(sendStorage)},
+  {"broadcastStorage", parallel_(broadcastStorage)},
   {"receiveStorage", parallel_(receiveStorage)},
+  {"receiveStorages", parallel_(receiveStorages)},
   {NULL, NULL}
 };
 

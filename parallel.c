@@ -12,6 +12,8 @@
 #include <sys/shm.h>
 #include <signal.h>
 
+#include <omp.h>
+
 #define MAX_NB_PROCESSES 1000
 
 #ifdef min
