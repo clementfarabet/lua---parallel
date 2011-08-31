@@ -67,7 +67,7 @@ parent = parent or {id = -1}
 children = {}
 processid = 1
 processes = {}
-sharedSize = 128*1024
+sharedSize = 4*1024*1024
 TMPFILE = '/tmp/lua.parallel.process.'
 
 --------------------------------------------------------------------------------
