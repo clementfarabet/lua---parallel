@@ -597,13 +597,13 @@ DLL_EXPORT int luaopen_libluazmq(lua_State *L)
     torch_FloatStorage_id  = luaT_checktypename2id(L, "torch.FloatStorage");
     torch_DoubleStorage_id = luaT_checktypename2id(L, "torch.DoubleStorage");
     
-    zmq_CharInit(L);
-    zmq_ByteInit(L);
-    zmq_ShortInit(L);
-    zmq_IntInit(L);
-    zmq_LongInit(L);
-    zmq_FloatInit(L);
-    zmq_DoubleInit(L);
+    Lzmq_CharInit(L);
+    Lzmq_ByteInit(L);
+    Lzmq_ShortInit(L);
+    Lzmq_IntInit(L);
+    Lzmq_LongInit(L);
+    Lzmq_FloatInit(L);
+    Lzmq_DoubleInit(L);
 
     return 1;
 }
