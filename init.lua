@@ -43,7 +43,8 @@ require 'zmq'
 local glob = _G
 local assignedid
 if parallel then 
-   assignedid = parallel.id 
+   assignedid = parallel.id
+   assignedip = parallel.ip
    parent = parallel.parent
 end
 local sys = sys
@@ -65,6 +66,7 @@ glob.libparallel = nil
 -- internal variables
 --------------------------------------------------------------------------------
 id = assignedid or 0
+ip = assignedip or "127.0.0.1"
 parent = parent or {id = -1}
 children = {}
 processid = 1
@@ -82,7 +84,6 @@ run = function(code,...)
          -- (1) create two sockets to communicate with child
          local sockreq = zmqctx:socket(zmq.REQ)
          local sockrep = zmqctx:socket(zmq.REP)
-         local ip = "127.0.0.1"
          local portreq = currentport
          while not sockreq:bind("tcp://" .. ip .. ":" .. portreq) do
             currentport = currentport + 1
