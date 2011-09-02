@@ -40,19 +40,24 @@ build = {
 
          set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-         set (CMAKE_C_FLAGS "-fopenmp")
          include_directories (${TORCH_INCLUDE_DIR} ${PROJECT_SOURCE_DIR})
+         link_directories    (${TORCH_LIBRARY_DIR})
+
+         # not working right now
+         add_library (luazmq SHARED zmq.c)
+         target_link_libraries (luazmq zmq ${TORCH_LIBRARIES})
+
+         #set (CMAKE_C_FLAGS "-fopenmp")
          add_library (parallel SHARED parallel.c)
-         link_directories (${TORCH_LIBRARY_DIR})
          target_link_libraries (parallel ${TORCH_LIBRARIES})
 
-         add_library (luazmq SHARED zmq.c)
-         link_directories (/usr/lib ${TORCH_LIBRARY_DIR})
-         target_link_libraries (luazmq zmq ${TORCH_LIBRARIES})
+
+         install_targets(/lib luazmq)
+         install_files(/lua zmq.lua)
 
          install_files(/lua/parallel init.lua)
          install_targets(/lib parallel)
-         install_targets(/lib luazmq)
+         
    ]],
 
    variables = {

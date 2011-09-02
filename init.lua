@@ -39,6 +39,8 @@ require 'sys'
 require 'torch'
 require 'libparallel'
 
+require 'zmq'
+
 local glob = _G
 local assignedid
 if parallel then 
