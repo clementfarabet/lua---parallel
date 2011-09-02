@@ -46,8 +46,11 @@ build = {
          link_directories (${TORCH_LIBRARY_DIR})
          target_link_libraries (parallel ${TORCH_LIBRARIES})
 
+         add_library (zmq SHARED zmq.c)
+
          install_files(/lua/parallel init.lua)
          install_targets(/lib parallel)
+         install_targets(/lib zmq)
    ]],
 
    variables = {
