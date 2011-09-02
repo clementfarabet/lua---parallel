@@ -29,6 +29,7 @@
 --                buffer
 --
 -- history:
+--     September  2, 2011, 5:42PM - using 0MQ instead of IPC - Scoffier / Farabet
 --     August 27, 2011, 6:31PM - beta release - Clement Farabet
 --     August 26, 2011, 6:03PM - creation - Clement Farabet
 ----------------------------------------------------------------------
@@ -37,8 +38,6 @@ require 'os'
 require 'io'
 require 'sys'
 require 'torch'
-require 'libparallel'
-
 require 'zmq'
 
 local glob = _G
@@ -48,6 +47,7 @@ if parallel then
    parent = parallel.parent
 end
 local sys = sys
+local zmq = zmq
 local tostring = tostring
 local torch = torch
 local error = error
@@ -68,92 +68,44 @@ id = assignedid or 0
 parent = parent or {id = -1}
 children = {}
 processid = 1
-processes = {}
-sharedSize = 4*1024*1024
-TMPFILE = '/tmp/lua.parallel.process.'
 
 --------------------------------------------------------------------------------
--- shared memory
+-- 0MQ context and options
 --------------------------------------------------------------------------------
-macos_etc = [[
-kern.sysv.shmmax=268435456
-kern.sysv.shmmin=1
-kern.sysv.shmmni=2048
-kern.sysv.shmseg=512
-kern.sysv.shmall=65536
-]]
-
-shared = function()
-            glob.io.write(sys.COLORS.red)
-            if sys.OS == 'macos' then
-               print('MAX SHARED MEMORY settings reached !')
-               print('currently ' .. (sharedSize*2) .. ' bytes are needed for each child')
-               print('created (each call to parallel.new()), if you intend to')
-               print('create N children, set your shmmax to N*' .. (sharedSize*2))
-               print('')
-               print('shmseg and/or shmni could also be too low: shmseg needs to be set')
-               print('at twice the number of children N')
-               print('')
-               print('On MacOS these settings can be changed by editing /etc/sysctl.conf :\n')
-               glob.print(macos_etc)
-               print('and then rebooting')
-               print('')
-               print('You can also reduce the memory allocated for each new process by')
-               print('calling: parallel.setSharedSize(SIZE) to a smaller value (note that this')
-               print('might result in slower data transfers)\n')
-            elseif sys.OS == 'linux' then
-               print('MAX SHARED MEMORY settings reached !')
-               print('currently ' .. (sharedSize*2) .. ' bytes are needed for each child')
-               print('created (each call to parallel.new()), if you intend to')
-               print('create N children, set your shmmax to N*' .. (sharedSize*2))
-               print('')
-               print('shmseg and/or shmni could also be too low: shmseg needs to be set')
-               print('at twice the number of children N')
-               print('')
-               print('You can also reduce the memory allocated for each new process by')
-               print('calling: parallel.setSharedSize(SIZE) to a smaller value (note that this')
-               print('might result in slower data transfers)\n')
-            else
-               print('SHARED MEMORY problem !')
-               print('unsupported OS, dont know how to deal with shared memory')
-            end
-            glob.io.write(sys.COLORS.none)
-            error('shared mem')
-         end
-
-setSharedSize = function(size) sharedSize = size end
-getSharedSize = function(size) return sharedSize end
+zmqctx = zmq.init(1)
+currentport = 5000
 
 --------------------------------------------------------------------------------
 -- start and run new process
 --------------------------------------------------------------------------------
 run = function(code,...)
-         -- (0) generate dummy files for shared buffers
-         local fileWR = TMPFILE..id..'-'..processid
-         local fileRD = TMPFILE..processid..'-'..id
-         os.execute('touch ' .. fileRD .. ' ' .. fileWR)
-
-         -- (1) generate code for child
-         --     this involve setting its id, parent id, and making sure it connects
-         --     to the share buffer
-         local tmpfile = TMPFILE .. tostring(sys.clock()) .. '.' .. processid
-         local file = io.open(tmpfile,'w')
-         file:write('parallel = {}\n')
-         file:write('parallel.id = ' .. processid .. '\n')
-         file:write('parallel.parent = {id = ' .. id .. '}\n')
-         file:write('require "parallel"\n')
-         file:write('torch.Storage().parallel.connect(' 
-                    ..sharedSize..', '..id..', "'..fileRD..'", "'..fileWR..'")\n')
-         file:write('\n')
-         file:write(code)
-         file:write('\nos.execute("rm ' .. tmpfile .. '")')
-         file:write('\ntorch.Storage().parallel.disconnect('..id..')')
-         file:close()
-
-         -- (2) create shared memory buffer to communicate with new child
-         if not torch.Storage().parallel.create(sharedSize, processid, fileWR, fileRD) then
-            shared()
+         -- (1) create two sockets to communicate with child
+         local sockreq = zmqctx:socket(zmq.REQ)
+         local sockrep = zmqctx:socket(zmq.REP)
+         local ip = "127.0.0.1"
+         local portreq = currentport
+         while not sockreq:bind("tcp://" .. ip .. ":" .. portreq) do
+            currentport = currentport + 1
+            portreq = currentport
          end
+         local portrep = currentport
+         while not sockrep:bind("tcp://" .. ip .. ":" .. portrep) do
+            currentport = currentport + 1
+            portrep = currentport
+         end
+
+         -- (2) generate code for child
+         --     this involve setting its id, parent id, and making sure it connects
+         --     to its parent
+         local str =  "parallel = {}; "
+         str = str .. "parallel.id = " .. processid .. "; "
+         str = str .. "parallel.parent = {id = " .. id .. "}; "
+         str = str .. "require 'parallel'; "
+         str = str .. "parallel.parent.socketrd = parallel.zmqctx:socket(zmq.REP); "
+         str = str .. "parallel.parent.socketrd:connect('tcp://"..ip..":"..portreq.."'); "
+         str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(zmq.REQ); "
+         str = str .. "parallel.parent.socketwr:connect('tcp://"..ip..":"..portrep.."'); "
+         str = str .. "loadstring(parallel.parent:receive())(); "
 
          -- (3) fork a lua process, running the code dumped above
          local args = {...}
@@ -161,13 +113,17 @@ run = function(code,...)
          for i = 1,glob.select('#',...) do
             strargs = strargs .. tostring(args[i]) .. ' '
          end
-         os.execute('lua ' .. tmpfile .. ' ' .. strargs .. ' &')
+         os.execute('lua -e "' .. str .. '" ' .. strargs .. ' &')
 
          -- (4) register child process for future reference
-         processes[processid] = {file=tmpfile}
-         processid = processid + 1
-         child = {id=processid-1, join=join, send=send, receive=receive}
+         child = {id=processid, join=join, send=send, receive=receive, 
+                  socketwr=sockreq, socketrd=sockrep, file=tmpfile}
          glob.table.insert(children, child)
+
+         -- (5) init child with code
+         child:send(code)
+
+         processid = processid + 1
          return child
       end
 
@@ -180,9 +136,8 @@ join = function(process)
                 join(proc)
              end
           else -- a single process to join
-             local file = processes[process.id].file
-             while sys.filep(file) do sys.usleep(1) end
-             torch.Storage().parallel.disconnect(process.id)
+             print('WARNING: join not implemented')
+             sys.sleep(1)
           end
        end
 
@@ -191,6 +146,8 @@ join = function(process)
 --------------------------------------------------------------------------------
 send = function(process, object)
           if process[1] then 
+             -- multiple processes
+             local processes = process
              -- a list of processes to send data to
              if not (torch.typename(object) and torch.typename(object):find('torch.*Storage')) then
                 -- serialize data once for all transfers
@@ -200,17 +157,19 @@ send = function(process, object)
                 object = f:storage()
                 f:close()
              end
-             -- create list of IDs
-             local ids = {}
-             for _,proc in ipairs(process) do
-                glob.table.insert(ids, proc.id)
-             end
              -- broadcast storage to all processes
-             object.parallel.broadcastStorage(object, ids)
+             for _,process in ipairs(processes) do
+                object.zmq.send(object, process.socketwr)
+             end
+             -- get acks from all processes
+             for _,process in ipairs(processes) do
+                process.socketwr:recv()
+             end
           else
              if torch.typename(object) and torch.typename(object):find('torch.*Storage') then
                 -- raw transfer ot storage
-                object.parallel.sendStorage(object,process.id)
+                object.zmq.send(object, process.socketwr)
+                process.socketwr:recv()
              else
                 -- serialize data first
                 local f = torch.MemoryFile()
@@ -229,26 +188,25 @@ send = function(process, object)
 --------------------------------------------------------------------------------
 receive = function(process, object)
              if process[1] then 
-                -- create list of IDs
-                local ids = {}
-                for _,proc in ipairs(process) do
-                   glob.table.insert(ids, proc.id)
-                end
                 -- receive all objects
                 if object and object[1] and torch.typename(object[1]) and torch.typename(object[1]):find('torch.*Storage') then
                    -- user objects are storages, just fill them
                    local objects = object
-                   object.parallel.receiveStorages(objects, ids)
+                   for i,proc in ipairs(process) do
+                      object[i].zmq.recv(object[i], proc.socketrd)
+                      proc.socketrd:send('!')
+                   end
                 else
                    -- receive raw storages
                    local storages = {}
-                   for i = 1,#ids do
+                   for i,proc in ipairs(process) do
                       storages[i] = torch.CharStorage()
+                      storages[i].zmq.recv(storages[i], proc.socketrd)
+                      proc.socketrd:send('!')
                    end
-                   storages[1].parallel.receiveStorages(storages, ids)
                    -- then un-serialize data objects
                    object = object or {}
-                   for i = 1,#ids do
+                   for i = 1,#process do
                       local f = torch.MemoryFile(storages[i])
                       f:binary()
                       object[i] = f:readObject()
@@ -258,7 +216,8 @@ receive = function(process, object)
              else
                 if object and torch.typename(object) and torch.typename(object):find('torch.*Storage') then
                    -- raw receive of storage
-                   object.parallel.receiveStorage(object,process.id)
+                   object.zmq.recv(object, process.socketrd)
+                   process.socketrd:send('!')
                 else
                    -- first receive raw storage
                    local s = torch.CharStorage()
@@ -281,15 +240,6 @@ print = function(...)
         end
 
 --------------------------------------------------------------------------------
--- system tools
---------------------------------------------------------------------------------
-ipcrm = function ()
-           local user = os.getenv('USER')
-           os.execute("for ipc in `ipcs -m | grep "..user.." | awk '{print $2}'`; "
-                      .."do ipcrm -m $ipc; done")
-        end
-
---------------------------------------------------------------------------------
 -- reset = forget all children, go back to initial state
 -- TODO: this is the right place to properly terminate children
 --------------------------------------------------------------------------------
@@ -298,7 +248,6 @@ reset = function()
            parent = parent or {id = -1}
            children = {}
            processid = 1
-           processes = {}
            if parent.id ~= -1 then
               parent.receive = receive
               parent.send = send

@@ -43,22 +43,13 @@ build = {
          include_directories (${TORCH_INCLUDE_DIR} ${PROJECT_SOURCE_DIR})
          link_directories    (${TORCH_LIBRARY_DIR})
 
-         # not working right now
          add_library (luazmq SHARED zmq.c)
          target_link_libraries (luazmq zmq ${TORCH_LIBRARIES})
-
-         add_library (parallel SHARED parallel.c)
-         target_link_libraries (parallel ${TORCH_LIBRARIES})
-         # parallel target specific cflags
-         set_property(TARGET parallel APPEND PROPERTY COMPILE_FLAGS "-fopenmp")
-         set_property(TARGET parallel APPEND PROPERTY LINK_FLAGS "-fopenmp")
 
          install_targets(/lib luazmq)
          install_files(/lua zmq.lua)
 
          install_files(/lua/parallel init.lua)
-         install_targets(/lib parallel)
-         
    ]],
 
    variables = {

@@ -3,9 +3,6 @@ require 'torch'
 require 'lab'
 require 'parallel'
 
--- set shared buffer size
-parallel.setSharedSize(256*1024)
-
 -- define code for workers:
 worker = [[
       -- a worker starts with a blank stack, we need to reload
@@ -21,6 +18,9 @@ worker = [[
          local t = parallel.parent:receive()
          parallel.print('received object with norm: ', t.data:norm())
       end
+
+      -- done
+      parallel.print('Im done')
 ]]
 
 -- print from top process
@@ -40,11 +40,10 @@ t = {name='my variable', data=lab.randn(100,100)}
 -- transmit object to each worker
 parallel.print('transmitting object with norm: ', t.data:norm())
 for i = 1,5 do
-   for i = 1,nprocesses do
-      parallel.children[i]:send(t)
-   end
+   parallel.children:send(t)
 end
 
 -- sync/terminate when all workers are done
+parallel.print('transmitted data to all children')
 parallel.children:join()
 parallel.print('all processes terminated')
