@@ -37,6 +37,7 @@ build = {
          message (STATUS "Found Torch7, installed in: " ${TORCH_PREFIX})
 
          find_package (Torch REQUIRED)
+         find_package (ZMQ REQUIRED)
 
          set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
@@ -44,8 +45,7 @@ build = {
          link_directories    (${TORCH_LIBRARY_DIR})
 
          add_library (luazmq SHARED zmq.c)
-         target_link_libraries (luazmq zmq ${TORCH_LIBRARIES})
-
+         target_link_libraries (luazmq ${ZMQ_LIBRARY} ${TORCH_LIBRARIES})
          install_targets(/lib luazmq)
          install_files(/lua zmq.lua)
 
