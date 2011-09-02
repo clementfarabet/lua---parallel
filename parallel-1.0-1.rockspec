@@ -47,10 +47,11 @@ build = {
          add_library (luazmq SHARED zmq.c)
          target_link_libraries (luazmq zmq ${TORCH_LIBRARIES})
 
-         #set (CMAKE_C_FLAGS "-fopenmp")
          add_library (parallel SHARED parallel.c)
          target_link_libraries (parallel ${TORCH_LIBRARIES})
-
+         # parallel target specific cflags
+         set_property(TARGET parallel APPEND PROPERTY COMPILE_FLAGS "-fopenmp")
+         
 
          install_targets(/lib luazmq)
          install_files(/lua zmq.lua)
