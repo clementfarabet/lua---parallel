@@ -490,7 +490,7 @@ static const luaL_reg sockmethods[] = {
 
 #define set_zmq_const(s) lua_pushinteger(L,ZMQ_##s); lua_setfield(L, -2, #s);
 
-LUALIB_API int luaopen_zmq(lua_State *L)
+LUALIB_API int luaopen_libluazmq(lua_State *L)
 {
     /* context metatable. */
     luaL_newmetatable(L, MT_ZMQ_CONTEXT);

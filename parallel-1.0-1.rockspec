@@ -46,11 +46,13 @@ build = {
          link_directories (${TORCH_LIBRARY_DIR})
          target_link_libraries (parallel ${TORCH_LIBRARIES})
 
-         add_library (zmq SHARED zmq.c)
+         add_library (luazmq SHARED zmq.c)
+         link_directories (/usr/lib ${TORCH_LIBRARY_DIR})
+         target_link_libraries (luazmq zmq ${TORCH_LIBRARIES})
 
          install_files(/lua/parallel init.lua)
          install_targets(/lib parallel)
-         install_targets(/lib zmq)
+         install_targets(/lib luazmq)
    ]],
 
    variables = {
