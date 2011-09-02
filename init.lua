@@ -121,8 +121,11 @@ run = function(code,...)
          glob.table.insert(children, child)
 
          -- (5) init child with code
-         child:send(code)
+         if code then
+            child:send(code)
+         end
 
+         -- (6) incr counter for next process
          processid = processid + 1
          return child
       end
