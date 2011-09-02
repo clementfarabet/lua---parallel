@@ -51,7 +51,7 @@ build = {
          target_link_libraries (parallel ${TORCH_LIBRARIES})
          # parallel target specific cflags
          set_property(TARGET parallel APPEND PROPERTY COMPILE_FLAGS "-fopenmp")
-         
+         set_property(TARGET parallel APPEND PROPERTY LINK_FLAGS "-fopenmp")
 
          install_targets(/lib luazmq)
          install_files(/lua zmq.lua)
