@@ -282,17 +282,9 @@ print = function(...)
 -- system tools
 --------------------------------------------------------------------------------
 ipcrm = function ()
-           local s = sys.execute('ipcs -m')
-           local start = 1
-           local key = true
-           while key do
-              if sys.OS == 'macos' then
-                 _,start,key = s:find('m%s*(%d+)%s*', start)
-              else
-                 break
-              end
-              if key then sys.execute('ipcrm -m ' .. key) end
-           end
+           local user = os.getenv('USER')
+           os.execute("for ipc in `ipcs -m | grep "..user.." | awk '{print $2}'`; "
+                      .."do ipcrm -m $ipc; done")
         end
 
 --------------------------------------------------------------------------------
