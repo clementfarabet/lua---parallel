@@ -41,7 +41,7 @@ build = {
 
          set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-         include_directories (${TORCH_INCLUDE_DIR} ${PROJECT_SOURCE_DIR})
+         include_directories (${TORCH_INCLUDE_DIR} ${PROJECT_SOURCE_DIR} ${ZMQ_INCLUDE_DIR})
          link_directories    (${TORCH_LIBRARY_DIR})
 
          add_library (luazmq SHARED zmq.c)
