@@ -115,7 +115,6 @@ autoip = function(interface)
                print('WARNING: unsupported OS')
                return
             end
-            print('IP automatically set to: ' .. ip)
          end
 
 --------------------------------------------------------------------------------
@@ -330,5 +329,6 @@ reset = function()
            children.send = send
            children.receive = receive
            children.exec = exec
+           autoip()
         end
 reset()

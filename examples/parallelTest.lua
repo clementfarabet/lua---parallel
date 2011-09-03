@@ -10,7 +10,7 @@ worker = [[
       require 'torch'
 
       -- print from worker:
-      parallel.print('Im a worker, my ID is: ' .. parallel.id)
+      parallel.print('Im a worker, my ID is: ' .. parallel.id .. ' and my IP: ' .. parallel.ip)
 
       -- define a storage to receive data from top process
       for i = 1,5 do
