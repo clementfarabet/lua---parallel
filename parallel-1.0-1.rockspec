@@ -37,17 +37,19 @@ build = {
          message (STATUS "Found Torch7, installed in: " ${TORCH_PREFIX})
 
          find_package (Torch REQUIRED)
+         find_package (ZMQ REQUIRED)
 
          set (CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
 
-         set (CMAKE_C_FLAGS "-fopenmp")
          include_directories (${TORCH_INCLUDE_DIR} ${PROJECT_SOURCE_DIR})
-         add_library (parallel SHARED parallel.c)
-         link_directories (${TORCH_LIBRARY_DIR})
-         target_link_libraries (parallel ${TORCH_LIBRARIES})
+         link_directories    (${TORCH_LIBRARY_DIR})
+
+         add_library (luazmq SHARED zmq.c)
+         target_link_libraries (luazmq ${ZMQ_LIBRARY} ${TORCH_LIBRARIES})
+         install_targets(/lib luazmq)
+         install_files(/lua zmq.lua)
 
          install_files(/lua/parallel init.lua)
-         install_targets(/lib parallel)
    ]],
 
    variables = {
