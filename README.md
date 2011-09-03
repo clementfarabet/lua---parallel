@@ -112,7 +112,7 @@ code = [[
 ]]
 
 -- execute code in given process(es), with optional arguments:
-parallel.children:exec(code [[[, arg1], arg2], ...])
+parallel.children:exec(code)
 
 -- this is equivalent to:
 for _,child in ipairs(parallel.child) do
