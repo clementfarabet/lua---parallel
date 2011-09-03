@@ -203,6 +203,23 @@ fork = function(rip, protocol, rlua, ...)
        end
 
 --------------------------------------------------------------------------------
+-- nfork = fork N processes, according to the given configuration
+-- the configuration is a table with N entries, each entry being:
+-- entry = {NB_PROCESSES, ip='IP_ADDR', protocol='PROTOCOL', lua='REMOTE_LUA_CMD_LINE'}
+--------------------------------------------------------------------------------
+nfork = function(...)
+           local args = {...}
+           local config
+           if glob.type(args[1]) == 'table' then config = args
+           else config = {args} end
+           for i,entry in ipairs(config) do
+              for k = 1,entry[1] do
+                 fork(entry.ip, entry.protocol, entry.lua)
+              end
+           end
+        end
+
+--------------------------------------------------------------------------------
 -- exec code in given process
 --------------------------------------------------------------------------------
 exec = function(process, code)

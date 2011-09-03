@@ -31,13 +31,8 @@ worker = [[
 -- print from top process
 parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
--- nb of workers
-nprocesses = 4
-
 -- fork N processes
-for i = 1,nprocesses do
-   parallel.fork()
-end
+parallel.nfork(4)
 
 -- exec worker code in each process
 parallel.children:exec(worker)
