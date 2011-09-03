@@ -7,12 +7,13 @@ require 'lab'
 parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
 -- fork N processes
-parallel.print('forking 8 processes on two remote machines')
-parallel.nfork({4, ip='texier.cs.nyu.edu', lua='~/lua-local/bin/lua'},
-               {4, ip='rose2.cs.nyu.edu', lua='~/lua-local/bin/lua'})
+parallel.print('forking N processes on remote machine(s)')
+parallel.nfork({4, ip='texier.cs', lua='~/lua-local/bin/lua'})
 
 -- define code for workers:
 worker = [[
+      print('crap')
+
       -- a worker starts with a blank stack, we need to reload
       -- our libraries
       require 'sys'
