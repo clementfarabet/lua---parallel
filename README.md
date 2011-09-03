@@ -1,12 +1,12 @@
 # para||el: a (simple) parallel computing framework for Lua
 
 This package provides a simple mechanism to dispatch and run Lua code
-as independant processes and communicate via unix point-to-point 
-shared memory buffers.
+as independant processes and communicate via ZeroMQ sockets. Processes
+can be forked locally or on remote machines.
 
 ## License
 
-Copyright (c) 2011 Clement Farabet
+Copyright (c) 2011 Clement Farabet, Marco Scoffier
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of this software and associated documentation files (the
@@ -34,13 +34,13 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 On Linux (Ubuntu > 9.04):
 
 ``` sh
-$ apt-get install gcc g++ git libreadline5-dev cmake
+$ apt-get install gcc g++ git libreadline5-dev cmake libzmq-dev libzmq0
 ```
 
 On Mac OS (Leopard, or more), using [Homebrew](http://mxcl.github.com/homebrew/):
 
 ``` sh
-$ brew install git readline cmake wget
+$ brew install git readline cmake wget zmq
 ```
 
 2/ Lua 5.1 + Luarocks + xLua:
@@ -72,7 +72,26 @@ Load/start up package:
 require 'parallel'
 ```
 
-Dispatch new process:
+Fork a new process, or N new processes, locally:
+
+``` lua
+parallel.fork()
+parallel.nfork(4)
+```
+
+Fork remote processes. In that following code, we fork 4 processes on myserver.org,
+and 6 processes on myserver2.org.
+
+``` lua
+parallel.nfork( {4, ip='myserver.org', protocol='ssh', lua='/path/to/remote/lua'},
+                {6, ip='myserver2.org', protocol='ssh', lua='/path/to/remote/lua'} )
+```
+
+Once processes have been forked, they all exist in a table: parallel.children, and
+all methods (exec,send,receive,join) work either on individual processes, or on
+groups of processes.
+
+The first thing to do is to load these new processes with code:
 
 ``` lua
 -- define process' code:
@@ -92,30 +111,60 @@ code = [[
      print(args[1])
 ]]
 
--- execute process, with optional arguments:
-parallel.run(code [[[, arg1], arg2], ...])
+-- execute code in given process(es), with optional arguments:
+parallel.children:exec(code [[[, arg1], arg2], ...])
+
+-- this is equivalent to:
+for _,child in ipairs(parallel.child) do
+    child:exec(code)
+end
 ```
 
-Join running processes: this is a simple blocking call that waits for the 
-given processes to terminate:
+parallel implements a simple yield/join mechanism to allow a parent to sync
+and affect the behavior of its children.
 
 ``` lua
--- create processes:
-for i = 1,4 do
-    parallel.run('print "Im in a process"')
+-- child code:
+code = [[
+     while true do
+        print('something')
+        parallel.yield()
+     end
+]]
+c = parallel.fork()
+c:exec(code)
+
+-- parent code
+for i = 1,10 do
+    c:join()
 end
 
--- sync processes, the following two calls are equivalent:
--- (1)
-parallel.children:join() -- join all children
--- (2)
-for i = 1,4 do
-    parallel.children[i]:join() -- join individual child
-end
+-- each time join() is called, it waits for the child to yield, and vice-versa.
+-- in that example, 'something' only gets printed when the parent joins its child
 ```
 
-When creating a child (parallel.run), two shared memory segments are automatically
-created to transfer data between the two processes. Two functions send() and receive()
+Slightly more complex things can be implemented with yield/join: join() can take
+a string as an argument, which is returned by the corresponding yield(). This
+is useful to control branching in your children:
+
+``` lua
+-- child code:
+code = [[
+     while true do
+        print('something')
+        m = parallel.yield()
+        if m == 'break' then break end
+     end
+]]
+c = parallel.fork()
+c:exec(code)
+
+-- parent code
+c:join('break')
+```
+
+When creating a child (parallel.fork), a connection is established
+to transfer data between the two processes. Two functions send() and receive()
 can be used to *efficiently* transfer data between these processes. Any Lua type, 
 and all Torch7 type (tensor, storage, ...) can be transferred this way. The transmission
 is efficient for numeric data, as serialization merely involves a binary copy and
@@ -133,8 +182,8 @@ somecode = [[
 ]]
 
 -- dispatch two processes:
-parallel.run(somecode)
-parallel.run(somecode)
+parallel.nfork(2)
+parallel.children:exec(somecode)
 
 -- and send them some data:
 t = {'a table', entry2='with arbitrary entries', tensor=torch.Tensor(100,100)}
@@ -152,43 +201,47 @@ A convenient print function that prepends the process ID issuing the print:
 <parallel#014>  something
 ```
 
-### A simple example:
+### A simple complete example:
 
 ``` lua
-require 'torch'
-require 'lab'
+-- required libs
 require 'parallel'
+require 'lab'
 
--- set shared buffer size
-parallel.setSharedSize(256*1024)
+-- print from top process
+parallel.print('Im the parent, my ID is: ' .. parallel.id)
+
+-- fork N processes (replace this by parallel.nfork{4, ip='server.org'}) to
+-- run this on a remote machine
+parallel.nfork(4)
 
 -- define code for workers:
 worker = [[
       -- a worker starts with a blank stack, we need to reload
       -- our libraries
+      require 'sys'
       require 'torch'
 
       -- print from worker:
-      parallel.print('Im a worker, my ID is: ' .. parallel.id)
+      parallel.print('Im a worker, my ID is: ' .. parallel.id .. ' and my IP: ' .. parallel.ip)
 
       -- define a storage to receive data from top process
-      for i = 1,5 do
+      while true do
+         -- yield = allow parent to terminate me
+         m = parallel.yield()
+         if m == 'break' then sys.sleep(1) break end
+
          -- receive data
          local t = parallel.parent:receive()
          parallel.print('received object with norm: ', t.data:norm())
+
+         -- send some data back
+         parallel.parent:send('this is my response')
       end
 ]]
 
--- print from top process
-parallel.print('Im the parent, my ID is: ' .. parallel.id)
-
--- nb of workers
-nprocesses = 4
-
--- dispatch/run each worker in a separate process
-for i = 1,nprocesses do
-   parallel.run(worker)
-end
+-- exec worker code in each process
+parallel.children:exec(worker)
 
 -- create a complex object to send to workers
 t = {name='my variable', data=lab.randn(100,100)}
@@ -196,12 +249,13 @@ t = {name='my variable', data=lab.randn(100,100)}
 -- transmit object to each worker
 parallel.print('transmitting object with norm: ', t.data:norm())
 for i = 1,5 do
-   for i = 1,nprocesses do
-      parallel.children[i]:send(t)
-   end
+   parallel.children:join()
+   parallel.children:send(t)
+   replies = parallel.children:receive()
 end
+parallel.print('transmitted data to all children')
 
 -- sync/terminate when all workers are done
-parallel.children:join()
+parallel.children:join('break')
 parallel.print('all processes terminated')
 ```
