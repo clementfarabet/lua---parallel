@@ -143,9 +143,10 @@ fork = function(rip, protocol, rlua, ...)
              end
           end
 
-          -- (1) create two sockets to communicate with child
+          -- (1) create sockets to communicate with child
           local sockreq = zmqctx:socket(zmq.REQ)
           local sockrep = zmqctx:socket(zmq.REP)
+          local sockmsg = zmqctx:socket(zmq.REQ)
           local portreq = currentport
           while not sockreq:bind("tcp://" .. ip .. ":" .. portreq) do
              currentport = currentport + 1
@@ -155,6 +156,11 @@ fork = function(rip, protocol, rlua, ...)
           while not sockrep:bind("tcp://" .. ip .. ":" .. portrep) do
              currentport = currentport + 1
              portrep = currentport
+          end
+          local portmsg = currentport
+          while not sockmsg:bind("tcp://" .. ip .. ":" .. portmsg) do
+             currentport = currentport + 1
+             portmsg = currentport
           end
 
           -- (2) generate code for child
@@ -168,6 +174,8 @@ fork = function(rip, protocol, rlua, ...)
           str = str .. "parallel.parent.socketrd:connect([[tcp://"..ip..":"..portreq.."]]) "
           str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(zmq.REQ) "
           str = str .. "parallel.parent.socketwr:connect([[tcp://"..ip..":"..portrep.."]]) "
+          str = str .. "parallel.parent.socketmsg = parallel.zmqctx:socket(zmq.REP) "
+          str = str .. "parallel.parent.socketmsg:connect([[tcp://"..ip..":"..portmsg.."]]) "
           local args = {...}
           str = str .. "parallel.args = {}"
           for i = 1,glob.select('#',...) do
@@ -184,8 +192,9 @@ fork = function(rip, protocol, rlua, ...)
           end
 
           -- (4) register child process for future reference
-          local child = {id=processid, join=join, send=send, receive=receive,
-                         exec=exec, socketwr=sockreq, socketrd=sockrep}
+          local child = {id=processid, 
+                         join=join, kill=kill, send=send, receive=receive, exec=exec, 
+                         socketwr=sockreq, socketrd=sockrep, socketmsg=sockmsg}
           glob.table.insert(children, child)
 
           -- (5) incr counter for next process
@@ -201,18 +210,62 @@ exec = function(process, code)
        end
 
 --------------------------------------------------------------------------------
--- join = wait for a process to conclude
+-- join = synchronize processes that have yielded, blocking call
 --------------------------------------------------------------------------------
 join = function(process)
-          if process[1] then -- a list of processes to join
+          if process[1] then
+             -- a list of processes to join
              for _,proc in ipairs(process) do
-                join(proc)
+                proc.socketmsg:send('join')
              end
-          else -- a single process to join
-             print('WARNING: join not implemented')
-             sys.sleep(1)
+             for _,proc in ipairs(process) do
+                proc.socketmsg:recv()
+             end
+          else 
+             -- a single process to join
+             process.socketmsg:send('join')
+             process.socketmsg:recv()
           end
        end
+
+--------------------------------------------------------------------------------
+-- kill = synchronize processes that have yielded and kill them, blocking call
+--------------------------------------------------------------------------------
+kill = function(process)
+          if process[1] then
+             -- a list of processes to join
+             for _,proc in ipairs(process) do
+                proc.socketmsg:send('kill')
+             end
+             for _,proc in ipairs(process) do
+                proc.socketmsg:recv()
+                children[proc.id] = nil
+             end
+          else 
+             -- a single process to join
+             process.socketmsg:send('kill')
+             process.socketmsg:recv()
+             children[process.id] = nil
+          end
+       end
+
+--------------------------------------------------------------------------------
+-- yield = interupt execution flow to allow parent to join
+--------------------------------------------------------------------------------
+yield = function()
+           local msg = parent.socketmsg:recv()
+           if msg == 'join' then
+              -- resume execution
+              parent.socketmsg:send('!')
+              return
+           end
+           if msg == 'kill' then
+              -- terminate
+              parent.socketmsg:send('!')
+              sys.sleep(1)
+              os.exit()
+           end
+        end
 
 --------------------------------------------------------------------------------
 -- transmit data
@@ -326,6 +379,7 @@ reset = function()
               parent.send = send
            end
            children.join = join
+           children.kill = kill
            children.send = send
            children.receive = receive
            children.exec = exec

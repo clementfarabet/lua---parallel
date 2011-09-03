@@ -13,14 +13,14 @@ worker = [[
       parallel.print('Im a worker, my ID is: ' .. parallel.id .. ' and my IP: ' .. parallel.ip)
 
       -- define a storage to receive data from top process
-      for i = 1,5 do
+      while true do
+         -- yield = allow parent to terminate me
+         parallel.yield()
+
          -- receive data
          local t = parallel.parent:receive()
          parallel.print('received object with norm: ', t.data:norm())
       end
-
-      -- done
-      parallel.print('Im done')
 ]]
 
 -- print from top process
@@ -40,10 +40,11 @@ t = {name='my variable', data=lab.randn(100,100)}
 -- transmit object to each worker
 parallel.print('transmitting object with norm: ', t.data:norm())
 for i = 1,5 do
+   parallel.children:join()
    parallel.children:send(t)
 end
+parallel.print('transmitted data to all children')
 
 -- sync/terminate when all workers are done
-parallel.print('transmitted data to all children')
-parallel.children:join()
+parallel.children:kill()
 parallel.print('all processes terminated')
