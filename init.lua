@@ -78,58 +78,87 @@ zmqctx = zmq.init(1)
 currentport = 5000
 
 --------------------------------------------------------------------------------
--- start and run new process
+-- run is a shortcut for fork/exec code on the local machine
 --------------------------------------------------------------------------------
 run = function(code,...)
-         -- (1) create two sockets to communicate with child
-         local sockreq = zmqctx:socket(zmq.REQ)
-         local sockrep = zmqctx:socket(zmq.REP)
-         local portreq = currentport
-         while not sockreq:bind("tcp://" .. ip .. ":" .. portreq) do
-            currentport = currentport + 1
-            portreq = currentport
-         end
-         local portrep = currentport
-         while not sockrep:bind("tcp://" .. ip .. ":" .. portrep) do
-            currentport = currentport + 1
-            portrep = currentport
-         end
+         -- (1) fork process
+         local child = fork(nil, nil, nil, ...)
 
-         -- (2) generate code for child
-         --     this involve setting its id, parent id, and making sure it connects
-         --     to its parent
-         local str =  "parallel = {}; "
-         str = str .. "parallel.id = " .. processid .. "; "
-         str = str .. "parallel.parent = {id = " .. id .. "}; "
-         str = str .. "require 'parallel'; "
-         str = str .. "parallel.parent.socketrd = parallel.zmqctx:socket(zmq.REP); "
-         str = str .. "parallel.parent.socketrd:connect('tcp://"..ip..":"..portreq.."'); "
-         str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(zmq.REQ); "
-         str = str .. "parallel.parent.socketwr:connect('tcp://"..ip..":"..portrep.."'); "
-         str = str .. "loadstring(parallel.parent:receive())(); "
-
-         -- (3) fork a lua process, running the code dumped above
-         local args = {...}
-         local strargs = ''
-         for i = 1,glob.select('#',...) do
-            strargs = strargs .. tostring(args[i]) .. ' '
-         end
-         os.execute('lua -e "' .. str .. '" ' .. strargs .. ' &')
-
-         -- (4) register child process for future reference
-         child = {id=processid, join=join, send=send, receive=receive, 
-                  socketwr=sockreq, socketrd=sockrep, file=tmpfile}
-         glob.table.insert(children, child)
-
-         -- (5) init child with code
-         if code then
-            child:send(code)
-         end
-
-         -- (6) incr counter for next process
-         processid = processid + 1
-         return child
+         -- (2) exec code
+         child:exec(code)
       end
+
+--------------------------------------------------------------------------------
+-- fork new idle process
+--------------------------------------------------------------------------------
+fork = function(rip, protocol, rlua, ...)
+          -- (0) connect to remote machine
+          if rip then
+             protocol = protocol or 'ssh'
+             rlua = rlua or 'lua'
+             if ip == '127.0.0.1' then
+                print('<parallel.fork> WARNING: local ip is set to localhost, forked'
+                      .. ' remote processes will not be able to reach it,'
+                      .. ' please set your local ip: parallel.ip = "XX.XX.XX.XX"')
+             end
+          end
+
+          -- (1) create two sockets to communicate with child
+          local sockreq = zmqctx:socket(zmq.REQ)
+          local sockrep = zmqctx:socket(zmq.REP)
+          local portreq = currentport
+          while not sockreq:bind("tcp://" .. ip .. ":" .. portreq) do
+             currentport = currentport + 1
+             portreq = currentport
+          end
+          local portrep = currentport
+          while not sockrep:bind("tcp://" .. ip .. ":" .. portrep) do
+             currentport = currentport + 1
+             portrep = currentport
+          end
+
+          -- (2) generate code for child
+          --     this involve setting its id, parent id, and making sure it connects
+          --     to its parent
+          local str =  "parallel = {} "
+          str = str .. "parallel.id = " .. processid .. " "
+          str = str .. "parallel.parent = {id = " .. id .. "} "
+          str = str .. "require([[parallel]]) "
+          str = str .. "parallel.parent.socketrd = parallel.zmqctx:socket(zmq.REP) "
+          str = str .. "parallel.parent.socketrd:connect([[tcp://"..ip..":"..portreq.."]]) "
+          str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(zmq.REQ) "
+          str = str .. "parallel.parent.socketwr:connect([[tcp://"..ip..":"..portrep.."]]) "
+          local args = {...}
+          str = str .. "parallel.args = {}"
+          for i = 1,glob.select('#',...) do
+             str = str .. 'table.insert(parallel.args, ' .. tostring(args[i]) .. ') '
+          end
+          str = str .. "loadstring(parallel.parent:receive())() "
+
+          -- (3) fork a lua process, running the code dumped above
+          if protocol then
+             os.execute(protocol .. ' ' .. rip ..
+                        ' "' .. rlua .. " -e '" .. str .. "' " .. '" &')
+          else
+             os.execute('lua -e "' .. str .. '" &')
+          end
+
+          -- (4) register child process for future reference
+          local child = {id=processid, join=join, send=send, receive=receive,
+                         exec=exec, socketwr=sockreq, socketrd=sockrep}
+          glob.table.insert(children, child)
+
+          -- (5) incr counter for next process
+          processid = processid + 1
+          return child
+       end
+
+--------------------------------------------------------------------------------
+-- exec code in given process
+--------------------------------------------------------------------------------
+exec = function(process, code)
+          process:send(code)
+       end
 
 --------------------------------------------------------------------------------
 -- join = wait for a process to conclude
@@ -259,5 +288,6 @@ reset = function()
            children.join = join
            children.send = send
            children.receive = receive
+           children.exec = exec
         end
 reset()
