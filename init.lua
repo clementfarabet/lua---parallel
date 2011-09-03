@@ -193,7 +193,7 @@ fork = function(rip, protocol, rlua, ...)
 
           -- (4) register child process for future reference
           local child = {id=processid, 
-                         join=join, kill=kill, send=send, receive=receive, exec=exec, 
+                         join=join, send=send, receive=receive, exec=exec, 
                          socketwr=sockreq, socketrd=sockrep, socketmsg=sockmsg}
           glob.table.insert(children, child)
 
@@ -206,43 +206,36 @@ fork = function(rip, protocol, rlua, ...)
 -- exec code in given process
 --------------------------------------------------------------------------------
 exec = function(process, code)
-          process:send(code)
+          local processes = process
+          if not process[1] then processes = {process} end
+          -- make sure no process is already running code
+          for _,process in ipairs(processes) do
+             if process.running then
+                error('<parallel.exec> process already running code, cannot exec again')
+             end
+             process.running = true
+          end
+          -- load all processes with code
+          processes:send(code)
        end
 
 --------------------------------------------------------------------------------
 -- join = synchronize processes that have yielded, blocking call
 --------------------------------------------------------------------------------
-join = function(process)
+join = function(process, msg)
+          msg = msg or ''
           if process[1] then
              -- a list of processes to join
              for _,proc in ipairs(process) do
-                proc.socketmsg:send('join')
+                proc.socketmsg:send(msg)
              end
              for _,proc in ipairs(process) do
                 proc.socketmsg:recv()
              end
           else 
              -- a single process to join
-             process.socketmsg:send('join')
+             process.socketmsg:send(msg)
              process.socketmsg:recv()
-          end
-       end
-
---------------------------------------------------------------------------------
--- kill = synchronize processes that have yielded and kill them, blocking call
---------------------------------------------------------------------------------
-kill = function(process)
-          if process[1] then
-             -- a list of processes to kill
-             for _,proc in ipairs(process) do
-                kill(proc)
-             end
-          else 
-             -- a single process to kill
-             process.socketmsg:send('kill')
-             process.socketmsg:recv()
-             -- clear process
-             children[process.id] = nil
           end
        end
 
@@ -251,17 +244,8 @@ kill = function(process)
 --------------------------------------------------------------------------------
 yield = function()
            local msg = parent.socketmsg:recv()
-           if msg == 'join' then
-              -- resume execution
-              parent.socketmsg:send('!')
-              return
-           end
-           if msg == 'kill' then
-              -- terminate
-              parent.socketmsg:send('!')
-              sys.sleep(1)
-              os.exit()
-           end
+           parent.socketmsg:send('!')
+           return msg
         end
 
 --------------------------------------------------------------------------------
@@ -376,7 +360,6 @@ reset = function()
               parent.send = send
            end
            children.join = join
-           children.kill = kill
            children.send = send
            children.receive = receive
            children.exec = exec
