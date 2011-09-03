@@ -95,7 +95,7 @@ The first thing to do is to load these new processes with code:
 
 ``` lua
 -- define process' code:
-code = [[
+code = [=[
      -- arbitrary code contained here
      require 'torch'
      t = torch.Tensor(10)
@@ -109,7 +109,7 @@ code = [[
      -- if arguments were passed, they're found in the regular ... table        
      args = {...}    
      print(args[1])
-]]
+]=]
 
 -- execute code in given process(es), with optional arguments:
 parallel.children:exec(code)
@@ -125,12 +125,12 @@ and affect the behavior of its children.
 
 ``` lua
 -- child code:
-code = [[
+code = [=[
      while true do
         print('something')
         parallel.yield()
      end
-]]
+]=]
 c = parallel.fork()
 c:exec(code)
 
@@ -149,13 +149,13 @@ is useful to control branching in your children:
 
 ``` lua
 -- child code:
-code = [[
+code = [=[
      while true do
         print('something')
         m = parallel.yield()
         if m == 'break' then break end
      end
-]]
+]=]
 c = parallel.fork()
 c:exec(code)
 
@@ -172,14 +172,14 @@ some extra headers for book-keeping (see serialization in Torch7's manual).
 
 ``` lua
 -- define some code for children
-somecode = [[
+somecode = [=[
     while true do
         -- in an infinite loop, receive objects from parent:
         local obj = parallel.parent:receive()
         -- print
         parallel.print('received object:', obj)
     end
-]]
+]=]
 
 -- dispatch two processes:
 parallel.nfork(2)
@@ -216,7 +216,7 @@ parallel.print('Im the parent, my ID is: ' .. parallel.id)
 parallel.nfork(4)
 
 -- define code for workers:
-worker = [[
+worker = [=[
       -- a worker starts with a blank stack, we need to reload
       -- our libraries
       require 'sys'
@@ -238,7 +238,7 @@ worker = [[
          -- send some data back
          parallel.parent:send('this is my response')
       end
-]]
+]=]
 
 -- exec worker code in each process
 parallel.children:exec(worker)
