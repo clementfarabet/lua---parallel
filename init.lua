@@ -132,7 +132,8 @@ run = function(code,...)
 -- fork new idle process
 --------------------------------------------------------------------------------
 fork = function(rip, protocol, rlua, ...)
-          -- (0) connect to remote machine
+          -- (0) remote or local connection
+          local lip
           if rip then
              protocol = protocol or 'ssh'
              rlua = rlua or 'lua'
@@ -141,6 +142,9 @@ fork = function(rip, protocol, rlua, ...)
                       .. ' remote processes will not be able to reach it,'
                       .. ' please set your local ip: parallel.ip = "XX.XX.XX.XX"')
              end
+             lip = ip
+          else
+             lip = '127.0.0.1'
           end
 
           -- (1) create sockets to communicate with child
@@ -148,17 +152,17 @@ fork = function(rip, protocol, rlua, ...)
           local sockrep = zmqctx:socket(zmq.REP)
           local sockmsg = zmqctx:socket(zmq.REQ)
           local portreq = currentport
-          while not sockreq:bind("tcp://" .. ip .. ":" .. portreq) do
+          while not sockreq:bind("tcp://" .. lip .. ":" .. portreq) do
              currentport = currentport + 1
              portreq = currentport
           end
           local portrep = currentport
-          while not sockrep:bind("tcp://" .. ip .. ":" .. portrep) do
+          while not sockrep:bind("tcp://" .. lip .. ":" .. portrep) do
              currentport = currentport + 1
              portrep = currentport
           end
           local portmsg = currentport
-          while not sockmsg:bind("tcp://" .. ip .. ":" .. portmsg) do
+          while not sockmsg:bind("tcp://" .. lip .. ":" .. portmsg) do
              currentport = currentport + 1
              portmsg = currentport
           end
@@ -171,11 +175,11 @@ fork = function(rip, protocol, rlua, ...)
           str = str .. "parallel.parent = {id = " .. id .. "} "
           str = str .. "require([[parallel]]) "
           str = str .. "parallel.parent.socketrd = parallel.zmqctx:socket(zmq.REP) "
-          str = str .. "parallel.parent.socketrd:connect([[tcp://"..ip..":"..portreq.."]]) "
+          str = str .. "parallel.parent.socketrd:connect([[tcp://"..lip..":"..portreq.."]]) "
           str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(zmq.REQ) "
-          str = str .. "parallel.parent.socketwr:connect([[tcp://"..ip..":"..portrep.."]]) "
+          str = str .. "parallel.parent.socketwr:connect([[tcp://"..lip..":"..portrep.."]]) "
           str = str .. "parallel.parent.socketmsg = parallel.zmqctx:socket(zmq.REP) "
-          str = str .. "parallel.parent.socketmsg:connect([[tcp://"..ip..":"..portmsg.."]]) "
+          str = str .. "parallel.parent.socketmsg:connect([[tcp://"..lip..":"..portmsg.."]]) "
           local args = {...}
           str = str .. "parallel.args = {}"
           for i = 1,glob.select('#',...) do
