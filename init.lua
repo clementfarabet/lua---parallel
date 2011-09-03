@@ -78,6 +78,47 @@ zmqctx = zmq.init(1)
 currentport = 5000
 
 --------------------------------------------------------------------------------
+-- configure local IP
+--------------------------------------------------------------------------------
+autoip = function(interface)
+            local interfaces
+            if glob.type(interface) == 'table' then
+               interfaces = interface
+            elseif interface then
+               interfaces = {interface}
+            end
+            if sys.OS == 'linux' then
+               interfaces = interfaces or {'eth0','eth1'}
+               local ipfound
+               for _,interface in ipairs(interfaces) do
+                  ipfound = sys.execute("/sbin/ifconfig " .. interface
+                                        .. " | grep 'inet addr:'| grep -v '127.0.0.1'"
+                                        .. " | cut -d: -f2 | awk '{ print $1}'")
+                  if ipfound:find('%d') then
+                     ip = ipfound:gsub('%s','')
+                     break
+                  end
+               end
+            elseif sys.OS == 'macos' then
+               interfaces = interfaces or {'en0','en1'}
+               local ipfound
+               for _,interface in ipairs(interfaces) do
+                  ipfound = sys.execute("/sbin/ifconfig " .. interface
+                                        .. " | grep -E 'inet.[0-9]' | grep -v '127.0.0.1'"
+                                        .. " | awk '{ print $2}'")
+                  if ipfound:find('%d') then
+                     ip = ipfound:gsub('%s','')
+                     break
+                  end
+               end
+            else
+               print('WARNING: unsupported OS')
+               return
+            end
+            print('IP automatically set to: ' .. ip)
+         end
+
+--------------------------------------------------------------------------------
 -- run is a shortcut for fork/exec code on the local machine
 --------------------------------------------------------------------------------
 run = function(code,...)
