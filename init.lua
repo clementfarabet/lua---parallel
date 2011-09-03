@@ -233,18 +233,15 @@ join = function(process)
 --------------------------------------------------------------------------------
 kill = function(process)
           if process[1] then
-             -- a list of processes to join
+             -- a list of processes to kill
              for _,proc in ipairs(process) do
-                proc.socketmsg:send('kill')
-             end
-             for _,proc in ipairs(process) do
-                proc.socketmsg:recv()
-                children[proc.id] = nil
+                kill(proc)
              end
           else 
-             -- a single process to join
+             -- a single process to kill
              process.socketmsg:send('kill')
              process.socketmsg:recv()
+             -- clear process
              children[process.id] = nil
           end
        end
