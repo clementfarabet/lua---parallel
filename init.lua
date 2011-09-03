@@ -135,7 +135,7 @@ fork = function(rip, protocol, rlua, ...)
           -- (0) remote or local connection
           local lip
           if rip then
-             protocol = protocol or 'ssh'
+             protocol = protocol or 'ssh -Y'
              rlua = rlua or 'lua'
              if ip == '127.0.0.1' then
                 print('<parallel.fork> WARNING: local ip is set to localhost, forked'
