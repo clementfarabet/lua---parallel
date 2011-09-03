@@ -216,7 +216,7 @@ exec = function(process, code)
              process.running = true
           end
           -- load all processes with code
-          processes:send(code)
+          send(processes, code)
        end
 
 --------------------------------------------------------------------------------
