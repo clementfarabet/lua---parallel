@@ -12,8 +12,6 @@ parallel.nfork({4, ip='texier.cs', lua='~/lua-local/bin/lua'})
 
 -- define code for workers:
 worker = [[
-      print('crap')
-
       -- a worker starts with a blank stack, we need to reload
       -- our libraries
       require 'sys'
