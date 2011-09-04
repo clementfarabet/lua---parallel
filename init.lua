@@ -209,10 +209,40 @@ nfork = function(...)
            if glob.type(args[1]) == 'table' then 
               config = args
               if glob.type(config[1][1]) == 'table' then config = config[1] end
-           else config = {args} end
+           else 
+              config = {args} 
+           end
            for i,entry in ipairs(config) do
               for k = 1,entry[1] do
                  fork(entry.ip, entry.protocol, entry.lua)
+              end
+           end
+        end
+
+--------------------------------------------------------------------------------
+-- sfork = smart fork N processes, according to the current remotes table
+-- parallel.addremote() should be called first to configure which machines are
+-- available, and how many cores each one has
+--------------------------------------------------------------------------------
+sfork = function(nb)
+           if not remotes then
+              -- local fork
+              nfork(nb)
+           else
+              -- remote fork: distribute processes on all remotes
+              while nb ~= 0 do
+                 for i,remote in ipairs(remotes) do
+                    if remote.cores > 0 or remotes.cores <= 0 then
+                       fork(remote.ip, remote.protocol, remote.lua)
+                       remote.cores = remote.cores - 1
+                       remotes.cores = remotes.cores - 1
+                       if remotes.cores == 0 then
+                          print('WARNING: forking more processes than cores available')
+                       end
+                       nb = nb - 1
+                       if nb == 0 then break end
+                    end
+                 end
               end
            end
         end
@@ -369,6 +399,27 @@ close = function()
 print = function(...)
            glob.print('<parallel#' .. glob.string.format('%03d',id) .. '>', ...)
         end
+
+--------------------------------------------------------------------------------
+-- add remote machine
+-- the table given is a table with N entries, each entry being:
+-- entry = {ip='IP_ADDR', protocol='PROTOCOL', lua='REMOTE_LUA_CMD_LINE', cores='NB_CORES'}
+--------------------------------------------------------------------------------
+addremote = function(...)
+               local args = {...}
+               local config
+               if glob.type(args[1]) == 'table' then 
+                  config = args
+                  if glob.type(config[1][1]) == 'table' then config = config[1] end
+               else 
+                  config = {args} 
+               end
+               remotes = remotes or {cores=0}
+               for i,entry in ipairs(config) do
+                  glob.table.insert(remotes, entry)
+                  remotes.cores = remotes.cores + entry.cores
+               end
+            end
 
 --------------------------------------------------------------------------------
 -- reset = forget all children, go back to initial state

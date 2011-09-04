@@ -6,11 +6,14 @@ require 'lab'
 -- print from top process
 parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
--- fork N processes
-parallel.print('forking N processes on remote machine(s)')
-parallel.nfork({8, ip='texier.cs', lua='~/lua-local/bin/lua'},
-               {8, ip='bud.cs', lua='~/lua-local/bin/lua'},
-               {4, ip='horatio.cs', lua='~/lua-local/bin/lua'})
+-- configure remotes
+parallel.addremote({ip='texier.cs', cores=16, lua='~/lua-local/bin/lua'},
+                   {ip='bud.cs', cores=8, lua='~/lua-local/bin/lua'},
+                   {ip='horatio.cs', cores=4, lua='~/lua-local/bin/lua'})
+
+-- fork 20 processes
+parallel.print('forking 20 processes on remote machine(s)')
+parallel.sfork(20)
 
 -- define code for workers:
 worker = [[
