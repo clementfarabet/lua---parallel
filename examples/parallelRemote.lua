@@ -54,3 +54,4 @@ parallel.print('transmitted data to all children')
 -- sync/terminate when all workers are done
 parallel.children:join('break')
 parallel.print('all processes terminated')
+parallel.close()

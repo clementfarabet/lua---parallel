@@ -230,8 +230,8 @@ exec = function(process, code)
              end
              process.running = true
           end
-          -- this sleep should be replaced soon
-          code = code .. '\n os.execute("sleep 1")'
+          -- close() after code is executed
+          code = code .. '\n parallel.close()'
           -- load all processes with code
           send(processes, code)
        end
@@ -345,6 +345,23 @@ receive = function(process, object)
              end
              return object
           end
+
+--------------------------------------------------------------------------------
+-- close = clean up sockets
+--------------------------------------------------------------------------------
+close = function()
+           if parent.id ~= -1 then
+              os.execute("sleep 1")
+              parent.socketrd:close()
+              parent.socketwr:close()
+           end
+           for _,process in ipairs(children) do
+              -- for some reason the following causes
+              -- a segfault
+              --process.socketrd:close()
+              --process.socketwr:close()
+           end
+        end
 
 --------------------------------------------------------------------------------
 -- all processes should use this print method
