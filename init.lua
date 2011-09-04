@@ -148,23 +148,17 @@ fork = function(rip, protocol, rlua, ...)
           end
 
           -- (1) create sockets to communicate with child
-          local sockreq = zmqctx:socket(zmq.REQ)
-          local sockrep = zmqctx:socket(zmq.REP)
-          local sockmsg = zmqctx:socket(zmq.REQ)
-          local portreq = currentport
-          while not sockreq:bind("tcp://" .. lip .. ":" .. portreq) do
+          local sockwr = zmqctx:socket(zmq.PUSH)
+          local sockrd = zmqctx:socket(zmq.PULL)
+          local portwr = currentport
+          while not sockwr:bind("tcp://*:" .. portwr) do
              currentport = currentport + 1
-             portreq = currentport
+             portwr = currentport
           end
-          local portrep = currentport
-          while not sockrep:bind("tcp://" .. lip .. ":" .. portrep) do
+          local portrd = currentport
+          while not sockrd:bind("tcp://*:" .. portrd) do
              currentport = currentport + 1
-             portrep = currentport
-          end
-          local portmsg = currentport
-          while not sockmsg:bind("tcp://" .. lip .. ":" .. portmsg) do
-             currentport = currentport + 1
-             portmsg = currentport
+             portrd = currentport
           end
 
           -- (2) generate code for child
@@ -174,12 +168,10 @@ fork = function(rip, protocol, rlua, ...)
           str = str .. "parallel.id = " .. processid .. " "
           str = str .. "parallel.parent = {id = " .. id .. "} "
           str = str .. "require([[parallel]]) "
-          str = str .. "parallel.parent.socketrd = parallel.zmqctx:socket(zmq.REP) "
-          str = str .. "parallel.parent.socketrd:connect([[tcp://"..lip..":"..portreq.."]]) "
-          str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(zmq.REQ) "
-          str = str .. "parallel.parent.socketwr:connect([[tcp://"..lip..":"..portrep.."]]) "
-          str = str .. "parallel.parent.socketmsg = parallel.zmqctx:socket(zmq.REP) "
-          str = str .. "parallel.parent.socketmsg:connect([[tcp://"..lip..":"..portmsg.."]]) "
+          str = str .. "parallel.parent.socketrd = parallel.zmqctx:socket(zmq.PULL) "
+          str = str .. "parallel.parent.socketrd:connect([[tcp://"..lip..":"..portwr.."]]) "
+          str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(zmq.PUSH) "
+          str = str .. "parallel.parent.socketwr:connect([[tcp://"..lip..":"..portrd.."]]) "
           local args = {...}
           str = str .. "parallel.args = {}"
           for i = 1,glob.select('#',...) do
@@ -199,7 +191,7 @@ fork = function(rip, protocol, rlua, ...)
           -- (4) register child process for future reference
           local child = {id=processid, 
                          join=join, send=send, receive=receive, exec=exec, 
-                         socketwr=sockreq, socketrd=sockrep, socketmsg=sockmsg}
+                         socketwr=sockwr, socketrd=sockrd}
           glob.table.insert(children, child)
 
           -- (5) make sure child is up and running
@@ -240,6 +232,8 @@ exec = function(process, code)
              end
              process.running = true
           end
+          -- this sleep should be replaced soon
+          code = code .. '\n os.execute("sleep 1")'
           -- load all processes with code
           send(processes, code)
        end
@@ -252,15 +246,15 @@ join = function(process, msg)
           if process[1] then
              -- a list of processes to join
              for _,proc in ipairs(process) do
-                proc.socketmsg:send(msg)
+                proc.socketwr:send(msg)
              end
              for _,proc in ipairs(process) do
-                proc.socketmsg:recv()
+                proc.socketrd:recv()
              end
           else 
              -- a single process to join
-             process.socketmsg:send(msg)
-             process.socketmsg:recv()
+             process.socketwr:send(msg)
+             process.socketrd:recv()
           end
        end
 
@@ -268,8 +262,8 @@ join = function(process, msg)
 -- yield = interupt execution flow to allow parent to join
 --------------------------------------------------------------------------------
 yield = function()
-           local msg = parent.socketmsg:recv()
-           parent.socketmsg:send('!')
+           local msg = parent.socketrd:recv()
+           parent.socketwr:send('!')
            return msg
         end
 
@@ -293,15 +287,10 @@ send = function(process, object)
              for _,process in ipairs(processes) do
                 object.zmq.send(object, process.socketwr)
              end
-             -- get acks from all processes
-             for _,process in ipairs(processes) do
-                process.socketwr:recv()
-             end
           else
              if torch.typename(object) and torch.typename(object):find('torch.*Storage') then
                 -- raw transfer ot storage
                 object.zmq.send(object, process.socketwr)
-                process.socketwr:recv()
              else
                 -- serialize data first
                 local f = torch.MemoryFile()
@@ -326,7 +315,6 @@ receive = function(process, object)
                    local objects = object
                    for i,proc in ipairs(process) do
                       object[i].zmq.recv(object[i], proc.socketrd)
-                      proc.socketrd:send('!')
                    end
                 else
                    -- receive raw storages
@@ -334,7 +322,6 @@ receive = function(process, object)
                    for i,proc in ipairs(process) do
                       storages[i] = torch.CharStorage()
                       storages[i].zmq.recv(storages[i], proc.socketrd)
-                      proc.socketrd:send('!')
                    end
                    -- then un-serialize data objects
                    object = object or {}
@@ -349,7 +336,6 @@ receive = function(process, object)
                 if object and torch.typename(object) and torch.typename(object):find('torch.*Storage') then
                    -- raw receive of storage
                    object.zmq.recv(object, process.socketrd)
-                   process.socketrd:send('!')
                 else
                    -- first receive raw storage
                    local s = torch.CharStorage()

@@ -17,7 +17,7 @@ worker = [[
       while true do
          -- yield = allow parent to terminate me
          m = parallel.yield()
-         if m == 'break' then sys.sleep(1) break end
+         if m == 'break' then break end
 
          -- receive data
          local t = parallel.parent:receive()
