@@ -75,7 +75,7 @@ processid = 1
 -- 0MQ context and options
 --------------------------------------------------------------------------------
 zmqctx = zmq.init(1)
-currentport = 5000
+currentport = 6000
 
 --------------------------------------------------------------------------------
 -- configure local IP
@@ -177,7 +177,6 @@ fork = function(rip, protocol, rlua, ...)
           for i = 1,glob.select('#',...) do
              str = str .. 'table.insert(parallel.args, ' .. tostring(args[i]) .. ') '
           end
-          str = str .. "parallel.parent:send([[alive]]) "
           str = str .. "loadstring(parallel.parent:receive())() "
 
           -- (3) fork a lua process, running the code dumped above
@@ -194,10 +193,7 @@ fork = function(rip, protocol, rlua, ...)
                          socketwr=sockwr, socketrd=sockrd}
           glob.table.insert(children, child)
 
-          -- (5) make sure child is up and running
-          child:receive()
-
-          -- (6) incr counter for next process
+          -- (5) incr counter for next process
           processid = processid + 1
           return child
        end
@@ -249,8 +245,6 @@ join = function(process, msg)
              -- a list of processes to join
              for _,proc in ipairs(process) do
                 proc.socketwr:send(msg)
-             end
-             for _,proc in ipairs(process) do
                 proc.socketrd:recv()
              end
           else 
