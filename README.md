@@ -87,6 +87,22 @@ parallel.nfork( {4, ip='myserver.org', protocol='ssh', lua='/path/to/remote/lua'
                 {6, ip='myserver2.org', protocol='ssh', lua='/path/to/remote/lua'} )
 ```
 
+Even more flexible, a list of machines can be established first, so that 
+a call to sfork() [smart fork] can automatically distribute the forked processes
+onto the available machines:
+
+``` lua
+parallel.addremote( {ip='server1.org', cores=8, lua='/path/to/lua', protocol='ssh -Y'},
+                    {ip='server2.org', cores=16, lua='/path/to/lua', protocol='ssh -Y'},
+                    {ip='server3.org', cores=4, lua='/path/to/lua', protocol='ssh -Y'} )
+parallel.sfork(16)
+
+-- in this example, the 16 processes will be distributed over the 3 machines:
+-- server1.org: 6 processes
+-- server2.org: 6 processes
+-- server3.org: 4 processes
+```
+
 Once processes have been forked, they all exist in a table: parallel.children, and
 all methods (exec,send,receive,join) work either on individual processes, or on
 groups of processes.
