@@ -8,7 +8,8 @@ parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
 -- fork N processes
 parallel.print('forking N processes on remote machine(s)')
-parallel.nfork({4, ip='texier.cs', lua='~/lua-local/bin/lua'})
+parallel.nfork({6, ip='texier.cs', lua='~/lua-local/bin/lua'},
+               {4, ip='horatio.cs', lua='~/lua-local/bin/lua'})
 
 -- define code for workers:
 worker = [[
