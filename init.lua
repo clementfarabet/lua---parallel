@@ -212,7 +212,7 @@ nfork = function(...)
            local config
            if glob.type(args[1]) == 'table' then 
               config = args
-              if glob.type(config[1]) == 'table' then config = config[1] end
+              if glob.type(config[1][1]) == 'table' then config = config[1] end
            else config = {args} end
            for i,entry in ipairs(config) do
               for k = 1,entry[1] do
