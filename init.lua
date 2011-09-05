@@ -53,6 +53,7 @@ local type = type
 local tostring = tostring
 local torch = torch
 local error = error
+local table = table
 local require = require
 local os = os
 local io = io
@@ -182,9 +183,8 @@ fork = function(rip, protocol, rlua, ...)
           pid = pid:gsub('%s','')
 
           -- (4) register child process for future reference
-          local child = {id=processid, unixid=pid,
-                         join=join, send=send, receive=receive, exec=exec, sync=sync,
-                         socketwr=sockwr, socketrd=sockrd}
+          local child = {id=processid, unixid=pid, ip=rip, socketwr=sockwr, socketrd=sockrd}
+          _fill(child)
           children[processid] = child
           nchildren = nchildren + 1
 
@@ -207,11 +207,15 @@ nfork = function(...)
            else 
               config = {args} 
            end
+           local forked = {}
            for i,entry in ipairs(config) do
               for k = 1,entry[1] do
-                 fork(entry.ip, entry.protocol, entry.lua)
+                 local child = fork(entry.ip, entry.protocol, entry.lua)
+                 table.insert(forked, child)
               end
            end
+           _fill(forked)
+           return forked
         end
 
 --------------------------------------------------------------------------------
@@ -220,18 +224,22 @@ nfork = function(...)
 -- available, and how many cores each one has
 --------------------------------------------------------------------------------
 sfork = function(nb)
+           local forked = {}
            if not remotes then
               -- local fork
-              nfork(nb)
+              table.insert(forked, nfork(nb))
            else
               -- remote fork: distribute processes on all remotes
               while nb ~= 0 do
                  for i,remote in ipairs(remotes) do
                     if remote.cores > 0 or remotes.cores <= 0 then
-                       fork(remote.ip, remote.protocol, remote.lua)
+                       local child = fork(remote.ip, remote.protocol, remote.lua)
+                       child.remote = remote
+                       child.speed = remote.speed or 1
                        remote.cores = remote.cores - 1
                        remotes.cores = remotes.cores - 1
-                       if remotes.cores == 0 then
+                       table.insert(forked, child)
+                       if remotes.cores < 0 then
                           print('WARNING: forking more processes than cores available')
                        end
                        nb = nb - 1
@@ -240,6 +248,8 @@ sfork = function(nb)
                  end
               end
            end
+           _fill(forked)
+           return forked
         end
 
 --------------------------------------------------------------------------------
@@ -309,6 +319,10 @@ sync = function(process)
                 local alive = sys.execute("ps -ef | awk '{if ($2 == " .. 
                                           process.unixid .. ") {print $2}}'"):gsub('%s','')
                 if alive == '' then
+                   if process.remote and process.remote.cores then
+                      process.remote.cores = process.remote.cores + 1
+                      remotes.cores = remotes.cores + 1
+                   end
                    children[process.id] = nil
                    nchildren = nchildren - 1
                    break
@@ -433,10 +447,13 @@ close = function()
                                              "ps -ef | grep 'lua -e parallel' "  ..
                                              "| awk '{if ($3 == 1) {print $2}}'")
                  local kill = 'kill -9 '
+                 local pids = ''
                  for orphan in orphans:gfind('%d+') do
-                    kill = kill .. orphan .. ' '
+                    pids = pids .. orphan .. ' '
                  end
-                 os.execute(prot .. ' ' .. remote.ip .. ' "' .. kill .. '"')
+                 if pids ~= '' then
+                    os.execute(prot .. ' ' .. remote.ip .. ' "' .. kill .. pids .. '"')
+                 end
               end
            end
         end
@@ -444,8 +461,9 @@ close = function()
 --------------------------------------------------------------------------------
 -- all processes should use this print method
 --------------------------------------------------------------------------------
+local _print = glob.print
 print = function(...)
-           glob.print('<parallel#' .. glob.string.format('%03d',id) .. '>', ...)
+           _print('<parallel#' .. glob.string.format('%03d',id) .. '>', ...)
         end
 
 --------------------------------------------------------------------------------
@@ -470,6 +488,69 @@ addremote = function(...)
             end
 
 --------------------------------------------------------------------------------
+-- calibrate remote machines: this function executes as many processes a
+-- cores declared for each machine, and assigns a speed coefficient to each
+-- machine. Processes forked on these machines will inherit from this 
+-- coefficient.
+-- coefs: 1.0 is the fastest machine
+--        0.5 means that the machine is 2x slower than the faster
+-- so, typically, if a process has coef 0.5, you want to give it twice as less
+-- stuff to process than the process that has coef 1.0.
+--------------------------------------------------------------------------------
+calibrate = function()
+               -- only calibrate if 'remotes' have been declared
+               if not remotes then
+                  error('<parallel.calibrate> calibration can only be done after addremote() is called')
+                  return
+               end
+               print('calibrating remote machines')
+               -- calibration code:
+               local calib = [[
+                     require 'torch'
+                     require 'sys'
+                     s = torch.Tensor(10000):fill(1)
+                     d = torch.Tensor(10000):fill(0)
+                     parallel.yield()
+                     sys.tic()
+                     for i = 1,100000 do
+                        d:add(13,s)
+                     end
+                     time = sys.toc()
+                     parallel.parent:send(time)
+               ]]
+               -- run calibration on as many cores as available
+               local forked = sfork(remotes.cores)
+               forked:exec(calib)
+               forked:join()
+               local times = forked:receive()
+               forked:sync()
+               -- normalize times
+               local max = 0
+               for i,time in pairs(times) do if time > max then max = time end end
+               for i,time in pairs(times) do times[i] = time/max end
+               -- store coefs in each remote
+               for _,remote in ipairs(remotes) do
+                  for i,time in pairs(times) do
+                     if forked[i].ip == remote.ip then
+                        remote.speed = glob.math.floor( time*10 + 0.5 ) / 10
+                        break
+                     end
+                  end
+               end
+            end
+
+--------------------------------------------------------------------------------
+-- create new process table, with methods
+--------------------------------------------------------------------------------
+_fill = function(process)
+           process.join = join
+           process.sync = sync
+           process.send = send
+           process.receive = receive
+           process.exec = exec
+        end
+
+--------------------------------------------------------------------------------
 -- reset = forget all children, go back to initial state
 -- TODO: this is the right place to properly terminate children
 --------------------------------------------------------------------------------
@@ -483,11 +564,7 @@ reset = function()
               parent.receive = receive
               parent.send = send
            end
-           children.join = join
-           children.sync = sync
-           children.send = send
-           children.receive = receive
-           children.exec = exec
+           _fill(children)
            nchildren = 0
            autoip()
         end
