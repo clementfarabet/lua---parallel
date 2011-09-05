@@ -81,7 +81,7 @@ autoip = function(interface)
                interfaces = {interface}
             end
             if sys.OS == 'linux' then
-               interfaces = interfaces or {'eth0','eth1'}
+               interfaces = interfaces or {'eth0','eth1','wlan0','wlan1'}
                local ipfound
                for _,interface in ipairs(interfaces) do
                   ipfound = sys.execute("/sbin/ifconfig " .. interface
