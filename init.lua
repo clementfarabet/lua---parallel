@@ -527,8 +527,9 @@ calibrate = function()
                forked:sync()
                -- normalize times
                local max = 0
-               for i,time in pairs(times) do if time > max then max = time end end
-               for i,time in pairs(times) do times[i] = time/max end
+               local speed
+               for i,time in pairs(times) do speed = 1/time if speed > max then max = speed end end
+               for i,time in pairs(times) do times[i] = (1/time)/max end
                -- store coefs in each remote
                for _,remote in ipairs(remotes) do
                   for i,time in pairs(times) do
