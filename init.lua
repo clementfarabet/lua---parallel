@@ -225,11 +225,11 @@ nfork = function(...)
 -- available, and how many cores each one has
 --------------------------------------------------------------------------------
 sfork = function(nb)
-           local forked = {}
            if not remotes then
               -- local fork
-              table.insert(forked, nfork(nb))
+              return nfork(nb)
            else
+              local forked = {}
               -- remote fork: distribute processes on all remotes
               while nb ~= 0 do
                  for i,remote in ipairs(remotes) do
@@ -248,9 +248,9 @@ sfork = function(nb)
                     end
                  end
               end
+              _fill(forked)
+              return forked
            end
-           _fill(forked)
-           return forked
         end
 
 --------------------------------------------------------------------------------
