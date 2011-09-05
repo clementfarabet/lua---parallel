@@ -443,7 +443,7 @@ close = function()
               for _,remote in ipairs(remotes) do
                  -- second brutal thing: check for remote processes that
                  -- might have become orphans, and kill them
-                 local prot = remote.protocol or 'ssh'
+                 local prot = remote.protocol or 'ssh -Y'
                  local orphans = sys.execute(prot .. " " .. remote.ip .. " " ..
                                              "ps -ef | grep 'lua -e parallel' "  ..
                                              "| awk '{if ($3 == 1) {print $2}}'")
