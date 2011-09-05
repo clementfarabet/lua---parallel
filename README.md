@@ -103,6 +103,22 @@ parallel.sfork(16)
 -- server3.org: 4 processes
 ```
 
+In the spirit of *really* abstracting where the jobs are executed, calibrate() can
+be called to estimate the compute power of each machine, so that you can distribute
+your load accordingly.
+
+``` lua
+parallel.addremote(...)
+parallel.calibrate()
+forked = parallel.sfork(parallel.remotes.cores)  -- fork as many processes as cores available
+for _,forked in ipairs(forked) do
+   print('id: ' .. forked.id .. ', speed = ' .. forked.speed)
+end
+-- the speed of each process is a number ]0..1]. A coef of 1 means that it is the
+-- fastest process available, and 0.5 for example would mean that the process is 2x
+-- slower
+```
+
 Once processes have been forked, they all exist in a table: parallel.children, and
 all methods (exec,send,receive,join) work either on individual processes, or on
 groups of processes.
