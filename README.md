@@ -179,6 +179,27 @@ c:exec(code)
 c:join('break')
 ```
 
+Sometimes you might want to wait for a process to actually terminate (die), so that
+you can start new ones. The proper way to do this is to use the sync() function, 
+which waits for the PID of that process to fully disappear from the OS. It also
+clears the child from the parallel.children list, and decrement parallel.nchildren.
+
+``` lua
+code = [[
+     -- do nothing and die
+]]
+parallel.nfork(1)              -- fork one process
+parallel.children:exec(code)   -- execute dummy code
+print(parallel.nchildren)      -- prints: 1
+parallel.children:sync()       -- wait for all children (here only 1) to die
+print(parallel.nchildren)      -- prints: 0
+parallel.nfork(2)              -- fork 2 processes
+print(parallel.nchildren)      -- prints: 2
+print(parallel.children[1])    -- prints: nil
+print(parallel.children[2])    -- prints: table --- current running processes always
+print(parallel.children[3])    -- prints: table --- exist in children[process.id]
+```
+
 When creating a child (parallel.fork), a connection is established
 to transfer data between the two processes. Two functions send() and receive()
 can be used to *efficiently* transfer data between these processes. Any Lua type, 

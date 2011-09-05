@@ -58,4 +58,5 @@ end
 
 -- protected execution:
 ok,err = pcall(parent)
-if not ok then print(err) parallel.close() end
+if not ok then print(err) end
+parallel.close()

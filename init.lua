@@ -49,6 +49,7 @@ if parallel then
 end
 local sys = sys
 local zmq = zmq
+local type = type
 local tostring = tostring
 local torch = torch
 local error = error
@@ -63,15 +64,6 @@ _lib = glob.libparallel
 glob.libparallel = nil
 
 --------------------------------------------------------------------------------
--- internal variables
---------------------------------------------------------------------------------
-id = assignedid or 0
-ip = assignedip or "127.0.0.1"
-parent = parent or {id = -1}
-children = {}
-processid = 1
-
---------------------------------------------------------------------------------
 -- 0MQ context and options
 --------------------------------------------------------------------------------
 zmqctx = zmq.init(1)
@@ -82,7 +74,7 @@ currentport = 6000
 --------------------------------------------------------------------------------
 autoip = function(interface)
             local interfaces
-            if glob.type(interface) == 'table' then
+            if type(interface) == 'table' then
                interfaces = interface
             elseif interface then
                interfaces = {interface}
@@ -191,9 +183,10 @@ fork = function(rip, protocol, rlua, ...)
 
           -- (4) register child process for future reference
           local child = {id=processid, unixid=pid,
-                         join=join, send=send, receive=receive, exec=exec, 
+                         join=join, send=send, receive=receive, exec=exec, sync=sync,
                          socketwr=sockwr, socketrd=sockrd}
-          glob.table.insert(children, child)
+          children[processid] = child
+          nchildren = nchildren + 1
 
           -- (5) incr counter for next process
           processid = processid + 1
@@ -208,9 +201,9 @@ fork = function(rip, protocol, rlua, ...)
 nfork = function(...)
            local args = {...}
            local config
-           if glob.type(args[1]) == 'table' then 
+           if type(args[1]) == 'table' then 
               config = args
-              if glob.type(config[1][1]) == 'table' then config = config[1] end
+              if type(config[1][1]) == 'table' then config = config[1] end
            else 
               config = {args} 
            end
@@ -254,13 +247,15 @@ sfork = function(nb)
 --------------------------------------------------------------------------------
 exec = function(process, code)
           local processes = process
-          if not process[1] then processes = {process} end
+          if process.id then processes = {process} end
           -- make sure no process is already running code
-          for _,process in ipairs(processes) do
-             if process.running then
-                error('<parallel.exec> process already running code, cannot exec again')
+          for _,process in pairs(processes) do
+             if type(process) == 'table' then
+                if process.running then
+                   error('<parallel.exec> process already running code, cannot exec again')
+                end
+                process.running = true
              end
-             process.running = true
           end
           -- close() after code is executed
           code = code .. '\n parallel.close()'
@@ -273,11 +268,13 @@ exec = function(process, code)
 --------------------------------------------------------------------------------
 join = function(process, msg)
           msg = msg or ''
-          if process[1] then
+          if not process.id then 
              -- a list of processes to join
-             for _,proc in ipairs(process) do
-                proc.socketwr:send(msg)
-                proc.socketrd:recv()
+             for _,proc in pairs(process) do
+                if type(proc) == 'table' then
+                   proc.socketwr:send(msg)
+                   proc.socketrd:recv()
+                end
              end
           else 
              -- a single process to join
@@ -296,10 +293,35 @@ yield = function()
         end
 
 --------------------------------------------------------------------------------
+-- sync = wait on a process, or processes, to terminate
+--------------------------------------------------------------------------------
+sync = function(process)
+          if not process.id then 
+             -- a list of processes to sync
+             for _,proc in pairs(process) do
+                if type(proc) == 'table' then
+                   sync(proc)
+                end
+             end
+          else 
+             -- a single process to sync
+             while true do
+                local alive = sys.execute("ps -ef | awk '{if ($2 == " .. 
+                                          process.unixid .. ") {print $2}}'"):gsub('%s','')
+                if alive == '' then
+                   children[process.id] = nil
+                   nchildren = nchildren - 1
+                   break
+                end
+             end
+          end
+       end
+
+--------------------------------------------------------------------------------
 -- transmit data
 --------------------------------------------------------------------------------
 send = function(process, object)
-          if process[1] then 
+          if not process.id then 
              -- multiple processes
              local processes = process
              -- a list of processes to send data to
@@ -312,8 +334,10 @@ send = function(process, object)
                 f:close()
              end
              -- broadcast storage to all processes
-             for _,process in ipairs(processes) do
-                object.zmq.send(object, process.socketwr)
+             for _,process in pairs(processes) do
+                if type(process) == 'table' then
+                   object.zmq.send(object, process.socketwr)
+                end
              end
           else
              if torch.typename(object) and torch.typename(object):find('torch.*Storage') then
@@ -336,28 +360,34 @@ send = function(process, object)
 -- receive data
 --------------------------------------------------------------------------------
 receive = function(process, object)
-             if process[1] then 
+             if not process.id then 
                 -- receive all objects
                 if object and object[1] and torch.typename(object[1]) and torch.typename(object[1]):find('torch.*Storage') then
                    -- user objects are storages, just fill them
                    local objects = object
-                   for i,proc in ipairs(process) do
-                      object[i].zmq.recv(object[i], proc.socketrd)
+                   for i,proc in pairs(process) do
+                      if type(proc) == 'table' then
+                         object[i].zmq.recv(object[i], proc.socketrd)
+                      end
                    end
                 else
                    -- receive raw storages
                    local storages = {}
-                   for i,proc in ipairs(process) do
-                      storages[i] = torch.CharStorage()
-                      storages[i].zmq.recv(storages[i], proc.socketrd)
+                   for i,proc in pairs(process) do
+                      if type(proc) == 'table' then
+                         storages[i] = torch.CharStorage()
+                         storages[i].zmq.recv(storages[i], proc.socketrd)
+                      end
                    end
                    -- then un-serialize data objects
                    object = object or {}
-                   for i = 1,#process do
-                      local f = torch.MemoryFile(storages[i])
-                      f:binary()
-                      object[i] = f:readObject()
-                      f:close()
+                   for i,proc in pairs(process) do
+                      if type(proc) == 'table' then
+                         local f = torch.MemoryFile(storages[i])
+                         f:binary()
+                         object[i] = f:readObject()
+                         f:close()
+                      end
                    end
                 end
              else
@@ -386,10 +416,12 @@ close = function()
            if parent.id ~= -1 then
               os.execute("sleep 1")
            end
-           for _,process in ipairs(children) do
+           for _,process in pairs(children) do
               -- this is a bit brutal, but at least ensures that
               -- all forked children are *really* killed
-              os.execute('kill -9 ' .. process.unixid)
+              if type(process) == 'table' then
+                 os.execute('kill -9 ' .. process.unixid)
+              end
            end
            if remotes then
               os.execute("sleep 1")
@@ -424,9 +456,9 @@ print = function(...)
 addremote = function(...)
                local args = {...}
                local config
-               if glob.type(args[1]) == 'table' then 
+               if type(args[1]) == 'table' then 
                   config = args
-                  if glob.type(config[1][1]) == 'table' then config = config[1] end
+                  if type(config[1][1]) == 'table' then config = config[1] end
                else 
                   config = {args} 
                end
@@ -443,6 +475,7 @@ addremote = function(...)
 --------------------------------------------------------------------------------
 reset = function()
            id = assignedid or 0
+           ip = assignedip or "127.0.0.1"
            parent = parent or {id = -1}
            children = {}
            processid = 1
@@ -451,9 +484,11 @@ reset = function()
               parent.send = send
            end
            children.join = join
+           children.sync = sync
            children.send = send
            children.receive = receive
            children.exec = exec
+           nchildren = 0
            autoip()
         end
 reset()

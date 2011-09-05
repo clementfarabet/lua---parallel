@@ -58,9 +58,9 @@ function parent()
    -- sync/terminate when all workers are done
    parallel.children:join('break')
    parallel.print('all processes terminated')
-   parallel.close()
 end
 
 -- protected execution:
 ok,err = pcall(parent)
-if not ok then print(err) parallel.close() end
+if not ok then print(err) end
+parallel.close()
