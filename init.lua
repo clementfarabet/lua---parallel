@@ -183,7 +183,8 @@ fork = function(rip, protocol, rlua, ...)
           pid = pid:gsub('%s','')
 
           -- (4) register child process for future reference
-          local child = {id=processid, unixid=pid, ip=rip, socketwr=sockwr, socketrd=sockrd}
+          local child = {id=processid, unixid=pid, ip=rip, speed=1,
+                         socketwr=sockwr, socketrd=sockrd}
           _fill(child)
           children[processid] = child
           nchildren = nchildren + 1
