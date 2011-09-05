@@ -385,13 +385,27 @@ close = function()
            print('closing session')
            if parent.id ~= -1 then
               os.execute("sleep 1")
-              parent.socketrd:close()
-              parent.socketwr:close()
            end
            for _,process in ipairs(children) do
               -- this is a bit brutal, but at least ensures that
               -- all forked children are *really* killed
               os.execute('kill -9 ' .. process.unixid)
+           end
+           if remotes then
+              os.execute("sleep 1")
+              for _,remote in ipairs(remotes) do
+                 -- second brutal thing: check for remote processes that
+                 -- might have become orphans, and kill them
+                 local prot = remote.protocol or 'ssh'
+                 local orphans = sys.execute(prot .. " " .. remote.ip .. " " ..
+                                             "ps -ef | grep 'lua -e parallel' "  ..
+                                             "| awk '{if ($3 == 1) {print $2}}'")
+                 local kill = 'kill -9 '
+                 for orphan in orphans:gfind('%d+') do
+                    kill = kill .. orphan .. ' '
+                 end
+                 os.execute(prot .. ' ' .. remote.ip .. ' "' .. kill .. '"')
+              end
            end
         end
 
