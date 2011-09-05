@@ -217,6 +217,30 @@ A convenient print function that prepends the process ID issuing the print:
 <parallel#014>  something
 ```
 
+Last, but not least: always run your parent code in a protected call, to catch
+potential errors, Ctrl+C, and the likes, and terminate nicely. By terminating
+nicely, I mean: killing all remote processes that you forked... If you don't
+do so, you leave you remote machines (and potentially yours) with hanging 
+processes that are just waiting to receive data, and will not hesitate to get
+back in business the next time you run your parent code :-)
+
+``` lua
+worker = [=[
+       -- some worker code
+]=]
+
+parent = function()
+       -- some parent code
+end
+
+ok,err = pcall(parent)
+if not ok then
+   print(err)
+   parallel.close()   -- this is the key call: doing this will insure leaving a clean
+                      -- state, whatever the error was (ctrl+c, internal error, ...)
+end
+```
+
 ### A simple complete example:
 
 ``` lua
@@ -224,15 +248,8 @@ A convenient print function that prepends the process ID issuing the print:
 require 'parallel'
 require 'lab'
 
--- print from top process
-parallel.print('Im the parent, my ID is: ' .. parallel.id)
-
--- fork N processes (replace this by parallel.nfork{4, ip='server.org'}) to
--- run this on a remote machine
-parallel.nfork(4)
-
 -- define code for workers:
-worker = [=[
+worker = [[
       -- a worker starts with a blank stack, we need to reload
       -- our libraries
       require 'sys'
@@ -245,7 +262,7 @@ worker = [=[
       while true do
          -- yield = allow parent to terminate me
          m = parallel.yield()
-         if m == 'break' then sys.sleep(1) break end
+         if m == 'break' then break end
 
          -- receive data
          local t = parallel.parent:receive()
@@ -254,24 +271,37 @@ worker = [=[
          -- send some data back
          parallel.parent:send('this is my response')
       end
-]=]
+]]
 
--- exec worker code in each process
-parallel.children:exec(worker)
+-- define code for parent:
+function parent()
+   -- print from top process
+   parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
--- create a complex object to send to workers
-t = {name='my variable', data=lab.randn(100,100)}
+   -- fork N processes
+   parallel.nfork(4)
 
--- transmit object to each worker
-parallel.print('transmitting object with norm: ', t.data:norm())
-for i = 1,5 do
-   parallel.children:join()
-   parallel.children:send(t)
-   replies = parallel.children:receive()
+   -- exec worker code in each process
+   parallel.children:exec(worker)
+
+   -- create a complex object to send to workers
+   t = {name='my variable', data=lab.randn(100,100)}
+
+   -- transmit object to each worker
+   parallel.print('transmitting object with norm: ', t.data:norm())
+   for i = 1,1000 do
+      parallel.children:join()
+      parallel.children:send(t)
+      replies = parallel.children:receive()
+   end
+   parallel.print('transmitted data to all children')
+
+   -- sync/terminate when all workers are done
+   parallel.children:join('break')
+   parallel.print('all processes terminated')
 end
-parallel.print('transmitted data to all children')
 
--- sync/terminate when all workers are done
-parallel.children:join('break')
-parallel.print('all processes terminated')
+-- protected execution:
+ok,err = pcall(parent)
+if not ok then print(err) parallel.close() end
 ```
