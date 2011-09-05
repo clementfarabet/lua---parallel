@@ -180,15 +180,17 @@ fork = function(rip, protocol, rlua, ...)
           str = str .. "loadstring(parallel.parent:receive())() "
 
           -- (3) fork a lua process, running the code dumped above
+          local pid
           if protocol then
-             os.execute(protocol .. ' ' .. rip ..
-                        ' "' .. rlua .. " -e '" .. str .. "' " .. '" &')
+             pid = sys.execute(protocol .. ' ' .. rip ..
+                               ' "' .. rlua .. " -e '" .. str .. "' " .. '" &  echo $!')
           else
-             os.execute('lua -e "' .. str .. '" &')
+             pid = sys.execute('lua -e "' .. str .. '" & echo $!')
           end
+          pid = pid:gsub('%s','')
 
           -- (4) register child process for future reference
-          local child = {id=processid, 
+          local child = {id=processid, unixid=pid,
                          join=join, send=send, receive=receive, exec=exec, 
                          socketwr=sockwr, socketrd=sockrd}
           glob.table.insert(children, child)
@@ -380,16 +382,16 @@ receive = function(process, object)
 -- close = clean up sockets
 --------------------------------------------------------------------------------
 close = function()
+           print('closing session')
            if parent.id ~= -1 then
               os.execute("sleep 1")
               parent.socketrd:close()
               parent.socketwr:close()
            end
            for _,process in ipairs(children) do
-              -- for some reason the following causes
-              -- a segfault
-              --process.socketrd:close()
-              --process.socketwr:close()
+              -- this is a bit brutal, but at least ensures that
+              -- all forked children are *really* killed
+              os.execute('kill -9 ' .. process.unixid)
            end
         end
 

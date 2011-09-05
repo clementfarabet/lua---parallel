@@ -3,18 +3,6 @@
 require 'parallel'
 require 'lab'
 
--- print from top process
-parallel.print('Im the parent, my ID is: ' .. parallel.id)
-
--- configure remotes
-parallel.addremote({ip='texier.cs', cores=16, lua='~/lua-local/bin/lua'},
-                   {ip='bud.cs', cores=8, lua='~/lua-local/bin/lua'},
-                   {ip='horatio.cs', cores=4, lua='~/lua-local/bin/lua'})
-
--- fork 20 processes
-parallel.print('forking 20 processes on remote machine(s)')
-parallel.sfork(20)
-
 -- define code for workers:
 worker = [[
       -- a worker starts with a blank stack, we need to reload
@@ -40,22 +28,39 @@ worker = [[
       end
 ]]
 
--- exec worker code in each process
-parallel.children:exec(worker)
+-- parent code:
+function parent()
+   -- print from top process
+   parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
--- create a complex object to send to workers
-t = {name='my variable', data=lab.randn(100,100)}
+   -- configure remotes [modify this line to try other machines]
+   parallel.addremote({ip='localhost', cores=8, lua='~/lua-local/bin/lua'})
 
--- transmit object to each worker
-parallel.print('transmitting object with norm: ', t.data:norm())
-for i = 1,5 do
-   parallel.children:join()
-   parallel.children:send(t)
-   replies = parallel.children:receive()
+   -- fork 20 processes
+   parallel.print('forking 20 processes on remote machine(s)')
+   parallel.sfork(20)
+
+   -- exec worker code in each process
+   parallel.children:exec(worker)
+
+   -- create a complex object to send to workers
+   t = {name='my variable', data=lab.randn(100,100)}
+
+   -- transmit object to each worker
+   parallel.print('transmitting object with norm: ', t.data:norm())
+   for i = 1,1000 do
+      parallel.children:join()
+      parallel.children:send(t)
+      replies = parallel.children:receive()
+   end
+   parallel.print('transmitted data to all children')
+
+   -- sync/terminate when all workers are done
+   parallel.children:join('break')
+   parallel.print('all processes terminated')
+   parallel.close()
 end
-parallel.print('transmitted data to all children')
 
--- sync/terminate when all workers are done
-parallel.children:join('break')
-parallel.print('all processes terminated')
-parallel.close()
+-- protected execution:
+ok,err = pcall(parent)
+if not ok then print(err) parallel.close() end

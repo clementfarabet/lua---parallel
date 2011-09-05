@@ -28,27 +28,34 @@ worker = [[
       end
 ]]
 
--- print from top process
-parallel.print('Im the parent, my ID is: ' .. parallel.id)
+-- define code for parent:
+function parent()
+   -- print from top process
+   parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
--- fork N processes
-parallel.nfork(4)
+   -- fork N processes
+   parallel.nfork(4)
 
--- exec worker code in each process
-parallel.children:exec(worker)
+   -- exec worker code in each process
+   parallel.children:exec(worker)
 
--- create a complex object to send to workers
-t = {name='my variable', data=lab.randn(100,100)}
+   -- create a complex object to send to workers
+   t = {name='my variable', data=lab.randn(100,100)}
 
--- transmit object to each worker
-parallel.print('transmitting object with norm: ', t.data:norm())
-for i = 1,5 do
-   parallel.children:join()
-   parallel.children:send(t)
-   replies = parallel.children:receive()
+   -- transmit object to each worker
+   parallel.print('transmitting object with norm: ', t.data:norm())
+   for i = 1,1000 do
+      parallel.children:join()
+      parallel.children:send(t)
+      replies = parallel.children:receive()
+   end
+   parallel.print('transmitted data to all children')
+
+   -- sync/terminate when all workers are done
+   parallel.children:join('break')
+   parallel.print('all processes terminated')
 end
-parallel.print('transmitted data to all children')
 
--- sync/terminate when all workers are done
-parallel.children:join('break')
-parallel.print('all processes terminated')
+-- protected execution:
+ok,err = pcall(parent)
+if not ok then print(err) parallel.close() end
