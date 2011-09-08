@@ -175,12 +175,22 @@ fork = function(rip, protocol, rlua, ...)
           -- (3) fork a lua process, running the code dumped above
           local pid
           if protocol then
-             pid = sys.execute(protocol .. ' ' .. rip ..
-                               ' "' .. rlua .. " -e '" .. str .. "' " .. '" &  echo $!')
-          else
+             -- qsub requires different call than ssh
+             if (protocol == 'qsub') then
+                str = ' \\"' .. rlua .. " -e '" .. str .. "' " .. '\\"'
+                print('ssh login-0-1 "echo '..str..' | qsub"')
+                sys.execute('ssh login-0-1 "echo '..str..' | qsub"')
+             else
+                pid = sys.execute(protocol .. ' ' .. rip ..
+                                  ' "' .. rlua .. " -e '" .. str .. 
+                                  "' " .. '" &  echo $!')
+             end
+             else
              pid = sys.execute('lua -e "' .. str .. '" & echo $!')
           end
-          pid = pid:gsub('%s','')
+	  if pid then 
+	     pid = pid:gsub('%s','')
+	  end
 
           -- (4) register child process for future reference
           local child = {id=processid, unixid=pid, ip=rip, speed=1,
@@ -434,7 +444,7 @@ close = function()
            for _,process in pairs(children) do
               -- this is a bit brutal, but at least ensures that
               -- all forked children are *really* killed
-              if type(process) == 'table' then
+              if type(process) == 'table' and process.unixid then
                  os.execute('kill -9 ' .. process.unixid)
               end
            end
