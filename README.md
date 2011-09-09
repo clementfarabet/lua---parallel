@@ -123,25 +123,28 @@ Once processes have been forked, they all exist in a table: parallel.children, a
 all methods (exec,send,receive,join) work either on individual processes, or on
 groups of processes.
 
-The first thing to do is to load these new processes with code:
+The first thing to do is to load these new processes with code. The code given
+can either be a function, with no arguments (it won't have any env when executing
+in the new process), or a string. Whether it is a string or a function, both
+get serialized into strings, and reloaded on the process side, using loadstring().
 
 ``` lua
 -- define process' code:
-code = [=[
-     -- arbitrary code contained here
-     require 'torch'
-     t = torch.Tensor(10)
-     print(t)
+code = function()
+   -- arbitrary code contained here
+   require 'torch'
+   t = torch.Tensor(10)
+   print(t)
 
-     -- any process can access its id, its parent's id [and children's id]
-     print(parallel.id)
-     print(parallel.parent.id)
-     if parallel.children[1] then print(parallel.children[1].id)
+   -- any process can access its id, its parent's id [and children's id]
+   print(parallel.id)
+   print(parallel.parent.id)
+   if parallel.children[1] then print(parallel.children[1].id)
 
-     -- if arguments were passed, they're found in the regular ... table        
-     args = {...}    
-     print(args[1])
-]=]
+   -- if arguments were passed, they're found in the regular ... table        
+   args = {...}    
+   print(args[1])
+end
 
 -- execute code in given process(es), with optional arguments:
 parallel.children:exec(code)
@@ -157,12 +160,12 @@ and affect the behavior of its children.
 
 ``` lua
 -- child code:
-code = [=[
-     while true do
-        print('something')
-        parallel.yield()
-     end
-]=]
+code = function()
+   while true do
+      print('something')
+      parallel.yield()
+   end
+end
 c = parallel.fork()
 c:exec(code)
 
@@ -181,13 +184,13 @@ is useful to control branching in your children:
 
 ``` lua
 -- child code:
-code = [=[
-     while true do
-        print('something')
-        m = parallel.yield()
-        if m == 'break' then break end
-     end
-]=]
+code = function()
+   while true do
+      print('something')
+      m = parallel.yield()
+      if m == 'break' then break end
+   end
+end
 c = parallel.fork()
 c:exec(code)
 
@@ -225,14 +228,14 @@ some extra headers for book-keeping (see serialization in Torch7's manual).
 
 ``` lua
 -- define some code for children
-somecode = [=[
-    while true do
-        -- in an infinite loop, receive objects from parent:
-        local obj = parallel.parent:receive()
-        -- print
-        parallel.print('received object:', obj)
-    end
-]=]
+somecode = function()
+   while true do
+      -- in an infinite loop, receive objects from parent:
+      local obj = parallel.parent:receive()
+      -- print
+      parallel.print('received object:', obj)
+   end
+end
 
 -- dispatch two processes:
 parallel.nfork(2)
@@ -262,9 +265,9 @@ processes that are just waiting to receive data, and will not hesitate to get
 back in business the next time you run your parent code :-)
 
 ``` lua
-worker = [=[
+worker = function()
        -- some worker code
-]=]
+end
 
 parent = function()
        -- some parent code
@@ -286,29 +289,29 @@ require 'parallel'
 require 'lab'
 
 -- define code for workers:
-worker = [[
-      -- a worker starts with a blank stack, we need to reload
-      -- our libraries
-      require 'sys'
-      require 'torch'
+function worker()
+   -- a worker starts with a blank stack, we need to reload
+   -- our libraries
+   require 'sys'
+   require 'torch'
 
-      -- print from worker:
-      parallel.print('Im a worker, my ID is: ' .. parallel.id .. ' and my IP: ' .. parallel.ip)
+   -- print from worker:
+   parallel.print('Im a worker, my ID is: ' .. parallel.id .. ' and my IP: ' .. parallel.ip)
 
-      -- define a storage to receive data from top process
-      while true do
-         -- yield = allow parent to terminate me
-         m = parallel.yield()
-         if m == 'break' then break end
+   -- define a storage to receive data from top process
+   while true do
+      -- yield = allow parent to terminate me
+      m = parallel.yield()
+      if m == 'break' then break end
 
-         -- receive data
-         local t = parallel.parent:receive()
-         parallel.print('received object with norm: ', t.data:norm())
+      -- receive data
+      local t = parallel.parent:receive()
+      parallel.print('received object with norm: ', t.data:norm())
 
-         -- send some data back
-         parallel.parent:send('this is my response')
-      end
-]]
+      -- send some data back
+      parallel.parent:send('this is my response')
+   end
+end
 
 -- define code for parent:
 function parent()
