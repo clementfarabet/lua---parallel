@@ -4,29 +4,29 @@ require 'parallel'
 require 'lab'
 
 -- define code for workers:
-worker = [[
-      -- a worker starts with a blank stack, we need to reload
-      -- our libraries
-      require 'sys'
-      require 'torch'
+function worker()
+   -- a worker starts with a blank stack, we need to reload
+   -- our libraries
+   require 'sys'
+   require 'torch'
 
-      -- print from worker:
-      parallel.print('Im a worker, my ID is: ' .. parallel.id .. ' and my IP: ' .. parallel.ip)
+   -- print from worker:
+   parallel.print('Im a worker, my ID is: ' .. parallel.id .. ' and my IP: ' .. parallel.ip)
 
-      -- define a storage to receive data from top process
-      while true do
-         -- yield = allow parent to terminate me
-         m = parallel.yield()
-         if m == 'break' then sys.sleep(1) break end
+   -- define a storage to receive data from top process
+   while true do
+      -- yield = allow parent to terminate me
+      m = parallel.yield()
+      if m == 'break' then sys.sleep(1) break end
 
-         -- receive data
-         local t = parallel.parent:receive()
-         parallel.print('received object with norm: ', t.data:norm())
+      -- receive data
+      local t = parallel.parent:receive()
+      parallel.print('received object with norm: ', t.data:norm())
 
-         -- send some data back
-         parallel.parent:send('this is my response')
-      end
-]]
+      -- send some data back
+      parallel.parent:send('this is my response')
+   end
+end
 
 -- parent code:
 function parent()

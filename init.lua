@@ -170,7 +170,8 @@ fork = function(rip, protocol, rlua, ...)
           for i = 1,glob.select('#',...) do
              str = str .. 'table.insert(parallel.args, ' .. tostring(args[i]) .. ') '
           end
-          str = str .. "loadstring(parallel.parent:receive())() "
+          str = str .. "_exec_ = parallel.parent:receive() "
+          str = str .. "for _,func in ipairs(_exec_) do loadstring(func)() end"
 
           -- (3) fork a lua process, running the code dumped above
           local pid
@@ -278,10 +279,17 @@ exec = function(process, code)
                 process.running = true
              end
           end
+          -- the code might be a function
+          local exec = {}
+          if glob.type(code) == 'function' then
+             table.insert(exec, glob.string.dump(code))
+          else
+             table.insert(exec, code)
+          end
           -- close() after code is executed
-          code = code .. '\n parallel.close()'
+          table.insert(exec, glob.string.dump(function() parallel.close() end))
           -- load all processes with code
-          send(processes, code)
+          send(processes, exec)
        end
 
 --------------------------------------------------------------------------------
