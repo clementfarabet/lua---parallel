@@ -13,40 +13,35 @@ function spawn(nworkers)
 end
 
 -- define code for workers:
-worker = [[
-      -- a worker starts with a blank stack, we need to reload
-      -- our libraries
-      require 'sys'
-      require 'torch'
-
-      -- print from worker:
-      parallel.print('Im a worker, my ID is: ' .. parallel.id .. ' and my IP: ' .. parallel.ip)
-
-      -- define a storage to receive data from top process
-      while true do
-         -- yield = allow parent to terminate me
-         m = parallel.yield()
-         if m == 'break' then sys.sleep(1) break end
-
-         -- receive data
-         local t = parallel.parent:receive()
-         parallel.print('received object with norm: ', t.data:norm())
-
-         -- send some data back
-         parallel.parent:send('this is my response')
-      end
-]]
+function worker ()
+   -- a worker starts with a blank stack, we need to reload
+   -- our libraries
+   require 'sys'
+   require 'torch'
+   
+   -- print from worker:
+   parallel.print('Im a worker, my ID is: ' .. parallel.id .. ' and my IP: ' .. parallel.ip)
+   
+   -- define a storage to receive data from top process
+   while true do
+      -- yield = allow parent to terminate me
+      m = parallel.yield()
+      if m == 'break' then sys.sleep(1) break end
+      
+      -- receive data
+      local t = parallel.parent:receive()
+      parallel.print('received object with norm: ', t.data:norm())
+      
+      -- send some data back
+      parallel.parent:send('this is my response')
+   end
+end
 
 -- parent code:
 function parent()
    -- print from top process
    parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
-   -- configure remotes [modify this line to try other machines]
-   -- parallel.addremote({ip='localhost', cores=8, lua='~/lua-local/bin/lua'})
-   -- fork 20 processes
-   -- parallel.print('forking 20 processes on remote machine(s)')
-   -- parallel.sfork(20)
    spawn(20) -- create 20 workers
 
 

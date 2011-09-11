@@ -179,7 +179,7 @@ fork = function(rip, protocol, rlua, ...)
              -- qsub requires different call than ssh
              if (protocol == 'qsub') then
                 str = ' \\"' .. rlua .. " -e '" .. str .. "' " .. '\\"'
-                print('ssh login-0-1 "echo '..str..' | qsub"')
+                -- print('ssh login-0-1 "echo '..str..' | qsub"')
                 sys.execute('ssh login-0-1 "echo '..str..' | qsub"')
              else
                 pid = sys.execute(protocol .. ' ' .. rip ..
