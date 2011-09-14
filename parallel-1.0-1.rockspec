@@ -50,6 +50,7 @@ build = {
          install_files(/lua zmq.lua)
 
          install_files(/lua/parallel init.lua)
+         install_files(/lua/parallel cloud.lua)
    ]],
 
    variables = {

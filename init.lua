@@ -59,10 +59,12 @@ local os = os
 local io = io
 local pairs = pairs
 local ipairs = ipairs
+local dofile = dofile
 
 module 'parallel'
 _lib = glob.libparallel
 glob.libparallel = nil
+
 
 --------------------------------------------------------------------------------
 -- 0MQ context and options
@@ -153,7 +155,6 @@ fork = function(rip, protocol, rlua, ...)
              currentport = currentport + 1
              portrd = currentport
           end
-
           -- (2) generate code for child
           --     this involve setting its id, parent id, and making sure it connects
           --     to its parent
@@ -175,20 +176,22 @@ fork = function(rip, protocol, rlua, ...)
 
           -- (3) fork a lua process, running the code dumped above
           local pid
+
           if protocol then
-             -- qsub requires different call than ssh
-             if (protocol == 'qsub') then
-                str = ' \\"' .. rlua .. " -e '" .. str .. "' " .. '\\"'
-                -- print('ssh login-0-1 "echo '..str..' | qsub"')
-                sys.execute('ssh login-0-1 "echo '..str..' | qsub"')
+             if (type(protocol) == 'function') then
+                -- as complicated as you like
+                protocol(sys)
              else
+                -- remote ssh
                 pid = sys.execute(protocol .. ' ' .. rip ..
                                   ' "' .. rlua .. " -e '" .. str .. 
                                   "' " .. '" &  echo $!')
              end
-             else
+          else
+             -- local multicore
              pid = sys.execute('lua -e "' .. str .. '" & echo $!')
           end
+
 	  if pid then 
 	     pid = pid:gsub('%s','')
 	  end
@@ -263,6 +266,7 @@ sfork = function(nb)
               return forked
            end
         end
+
 
 --------------------------------------------------------------------------------
 -- exec code in given process
@@ -589,3 +593,6 @@ reset = function()
            autoip()
         end
 reset()
+
+-- pull in the code for the cloud extensions
+torch.include('parallel', 'cloud.lua')
