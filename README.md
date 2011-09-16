@@ -204,9 +204,9 @@ which waits for the PID of that process to fully disappear from the OS. It also
 clears the child from the parallel.children list, and decrement parallel.nchildren.
 
 ``` lua
-code = [[
+code = function()
      -- do nothing and die
-]]
+end
 parallel.nfork(1)              -- fork one process
 parallel.children:exec(code)   -- execute dummy code
 print(parallel.nchildren)      -- prints: 1
