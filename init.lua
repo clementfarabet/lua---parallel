@@ -382,7 +382,11 @@ send = function(process, object)
 --------------------------------------------------------------------------------
 -- receive data
 --------------------------------------------------------------------------------
-receive = function(process, object)
+receive = function(process, object, flags)
+             if object and type(object) == 'string' and object == 'noblock' or flags == 'noblock' then
+                flags = zmq.NOBLOCK
+             end
+             local ret = true
              if not process.id then 
                 -- receive all objects
                 if object and object[1] and torch.typename(object[1]) and torch.typename(object[1]):find('torch.*Storage') then
@@ -390,7 +394,7 @@ receive = function(process, object)
                    local objects = object
                    for i,proc in pairs(process) do
                       if type(proc) == 'table' then
-                         object[i].zmq.recv(object[i], proc.socketrd)
+                         ret = object[i].zmq.recv(object[i], proc.socketrd, flags)
                       end
                    end
                 else
@@ -399,7 +403,7 @@ receive = function(process, object)
                    for i,proc in pairs(process) do
                       if type(proc) == 'table' then
                          storages[i] = torch.CharStorage()
-                         storages[i].zmq.recv(storages[i], proc.socketrd)
+                         ret = storages[i].zmq.recv(storages[i], proc.socketrd, flags)
                       end
                    end
                    -- then un-serialize data objects
@@ -416,11 +420,12 @@ receive = function(process, object)
              else
                 if object and torch.typename(object) and torch.typename(object):find('torch.*Storage') then
                    -- raw receive of storage
-                   object.zmq.recv(object, process.socketrd)
+                   ret = object.zmq.recv(object, process.socketrd, flags)
                 else
                    -- first receive raw storage
                    local s = torch.CharStorage()
-                   receive(process, s)
+                   _,ret = receive(process, s, flags)
+                   if not ret then return end
                    -- then un-serialize data object
                    local f = torch.MemoryFile(s)
                    f:binary()
@@ -428,7 +433,7 @@ receive = function(process, object)
                    f:close()
                 end
              end
-             return object
+             return object, ret
           end
 
 --------------------------------------------------------------------------------

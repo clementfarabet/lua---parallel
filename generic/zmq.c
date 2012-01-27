@@ -52,6 +52,10 @@ static int Lzmq_(recv)(lua_State *L)
   }
 
   if(zmq_recv(s->ptr, &msg, flags) != 0) {
+    if (flags == 1) {
+      lua_pushboolean(L, 0);
+      return 1;
+    }
     // Best we can do in this case is try to close and hope for the best.
     zmq_msg_close(&msg);
     return Lzmq_push_error(L);
@@ -71,7 +75,9 @@ static int Lzmq_(recv)(lua_State *L)
     return Lzmq_push_error(L);
   }
 
-  return 0;
+  lua_pushboolean(L, 1);
+
+  return 1;
 }
 
 static const struct luaL_reg Lzmq_(methods)[] = {
