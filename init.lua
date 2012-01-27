@@ -127,9 +127,9 @@ run = function(code,...)
 fork = function(rip, protocol, rlua, ...)
           -- (0) remote or local connection
           local lip
+          rlua = rlua or 'torch'
           if rip then
              protocol = protocol or 'ssh -Y'
-             rlua = rlua or 'lua'
              if ip == '127.0.0.1' then
                 print('<parallel.fork> WARNING: local ip is set to localhost, forked'
                       .. ' remote processes will not be able to reach it,'
@@ -179,7 +179,7 @@ fork = function(rip, protocol, rlua, ...)
              pid = sys.execute(protocol .. ' ' .. rip ..
                                ' "' .. rlua .. " -e '" .. str .. "' " .. '" &  echo $!')
           else
-             pid = sys.execute('lua -e "' .. str .. '" & echo $!')
+             pid = sys.execute(rlua .. ' -e "' .. str .. '" & echo $!')
           end
           pid = pid:gsub('%s','')
 
