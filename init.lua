@@ -38,7 +38,7 @@ require 'os'
 require 'io'
 require 'sys'
 require 'torch'
-require 'zmq'
+require 'libluazmq'
 
 local glob = _G
 local assignedid
