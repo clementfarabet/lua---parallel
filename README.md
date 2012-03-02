@@ -27,40 +27,38 @@ LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-## Install dependencies 
+## Install 
 
-1/ third-party libraries:
+1/ Torch7 is required:
 
-On Linux (Ubuntu > 9.04):
-
-``` sh
-$ apt-get install gcc g++ git libreadline5-dev cmake libzmq-dev libzmq0
-```
-
-On Mac OS (Leopard, or more), using [Homebrew](http://mxcl.github.com/homebrew/):
+Dependencies, on Linux (Ubuntu > 9.04):
 
 ``` sh
-$ brew install git readline cmake wget zmq
+$ apt-get install gcc g++ git libreadline5-dev cmake wget libqt4-core libqt4-gui libqt4-dev
 ```
 
-2/ Lua 5.1 + Luarocks + xLua:
+Dependencies, on Mac OS (Leopard, or more), using [Homebrew](http://mxcl.github.com/homebrew/):
 
 ``` sh
-$ git clone https://github.com/clementfarabet/lua4torch
-$ cd lua4torch
-$ make install PREFIX=/usr/local
+$ brew install git readline cmake wget qt
 ```
 
-3/ parallel:
-
-clone this repo and then:
+Then on both platforms:
 
 ``` sh
-$ luarocks install parallel
+$ git clone https://github.com/andresy/torch
+$ cd torch
+$ mkdir build; cd build
+$ cmake ..
+$ make
+$ [sudo] make install
 ```
 
-(for info: this will first install Torch7, which is used to exchange/serialize
-data between processes)
+2/ Once Torch7 is available, install this package:
+
+``` sh
+$ [sudo] torch-pkg install parallel
+```
 
 ## Use the library
 
