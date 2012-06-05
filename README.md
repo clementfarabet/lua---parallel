@@ -1,6 +1,6 @@
-# para||el: a (simple) parallel computing framework for Lua
+# para||el: a (simple) parallel computing framework for Torch
 
-This package provides a simple mechanism to dispatch and run Lua code
+This package provides a simple mechanism to dispatch and run Torch/Lua code
 as independant processes and communicate via ZeroMQ sockets. Processes
 can be forked locally or on remote machines.
 
@@ -81,8 +81,8 @@ Fork remote processes. In that following code, we fork 4 processes on myserver.o
 and 6 processes on myserver2.org.
 
 ``` lua
-parallel.nfork( {4, ip='myserver.org', protocol='ssh', lua='/path/to/remote/lua'},
-                {6, ip='myserver2.org', protocol='ssh', lua='/path/to/remote/lua'} )
+parallel.nfork( {4, ip='myserver.org', protocol='ssh', lua='/path/to/remote/torch'},
+                {6, ip='myserver2.org', protocol='ssh', lua='/path/to/remote/torch'} )
 ```
 
 Even more flexible, a list of machines can be established first, so that 
@@ -90,9 +90,9 @@ a call to sfork() [smart fork] can automatically distribute the forked processes
 onto the available machines:
 
 ``` lua
-parallel.addremote( {ip='server1.org', cores=8, lua='/path/to/lua', protocol='ssh -Y'},
-                    {ip='server2.org', cores=16, lua='/path/to/lua', protocol='ssh -Y'},
-                    {ip='server3.org', cores=4, lua='/path/to/lua', protocol='ssh -Y'} )
+parallel.addremote( {ip='server1.org', cores=8, lua='/path/to/torch', protocol='ssh -Y'},
+                    {ip='server2.org', cores=16, lua='/path/to/torch', protocol='ssh -Y'},
+                    {ip='server3.org', cores=4, lua='/path/to/torch', protocol='ssh -Y'} )
 parallel.sfork(16)
 
 -- in this example, the 16 processes will be distributed over the 3 machines:
@@ -323,7 +323,7 @@ function parent()
    parallel.children:exec(worker)
 
    -- create a complex object to send to workers
-   t = {name='my variable', data=lab.randn(100,100)}
+   t = {name='my variable', data=torch.randn(100,100)}
 
    -- transmit object to each worker
    parallel.print('transmitting object with norm: ', t.data:norm())

@@ -1,7 +1,7 @@
 
 -- required libs
 require 'parallel'
-require 'lab'
+require 'torch'
 
 -- calibration code:
 calib = [[

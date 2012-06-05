@@ -1,7 +1,7 @@
 
 -- required libs
 require 'parallel'
-require 'lab'
+require 'torch'
 
 -- define code for workers:
 function worker()
@@ -44,7 +44,7 @@ function parent()
    parallel.children:exec(worker)
 
    -- create a complex object to send to workers
-   t = {name='my variable', data=lab.randn(100,100)}
+   t = {name='my variable', data=torch.randn(100,100)}
 
    -- transmit object to each worker
    parallel.print('transmitting object with norm: ', t.data:norm())
