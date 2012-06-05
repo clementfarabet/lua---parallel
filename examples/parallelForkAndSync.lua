@@ -4,19 +4,19 @@ require 'parallel'
 require 'torch'
 
 -- calibration code:
-calib = [[
-      require 'torch'
-      require 'sys'
-      s = torch.Tensor(100000):fill(1)
-      d = torch.Tensor(100000):fill(0)
-      parallel.yield()
-      sys.tic()
-      for i = 1,10000 do
-         d:add(13,s)
-      end
-      time = sys.toc()
-      parallel.parent:send(time)
-]]
+function calib()
+   require 'torch'
+   require 'sys'
+   s = torch.Tensor(100000):fill(1)
+   d = torch.Tensor(100000):fill(0)
+   parallel.yield()
+   sys.tic()
+   for i = 1,10000 do
+      d:add(13,s)
+   end
+   time = sys.toc()
+   parallel.parent:send(time)
+end
 
 -- parent code:
 function parent()

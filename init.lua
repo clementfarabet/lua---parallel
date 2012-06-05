@@ -127,7 +127,7 @@ run = function(code,...)
 fork = function(rip, protocol, rlua, ...)
           -- (0) remote or local connection
           local lip
-          rlua = rlua or 'torch'
+          rlua = rlua or 'torch-lua'
           if rip then
              protocol = protocol or 'ssh -Y'
              if ip == '127.0.0.1' then
@@ -458,7 +458,7 @@ close = function()
                  -- might have become orphans, and kill them
                  local prot = remote.protocol or 'ssh -Y'
                  local orphans = sys.execute(prot .. " " .. remote.ip .. " " ..
-                                             "ps -ef | grep 'lua -e parallel' "  ..
+                                             "ps -ef | grep 'torch-lua -e parallel' "  ..
                                              "| awk '{if ($3 == 1) {print $2}}'")
                  local kill = 'kill -9 '
                  local pids = ''

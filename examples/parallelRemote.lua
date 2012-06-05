@@ -34,7 +34,7 @@ function parent()
    parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
    -- configure remotes [modify this line to try other machines]
-   parallel.addremote({ip='localhost', cores=8, lua='~/lua-local/bin/lua'})
+   parallel.addremote({ip='localhost', cores=8, lua=paths.install_bin..'/torch-lua'})
 
    -- fork 20 processes
    parallel.print('forking 20 processes on remote machine(s)')
