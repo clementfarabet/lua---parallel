@@ -1,8 +1,10 @@
 
+-- libs
 require 'parallel'
 require 'torch'
 require 'image'
 
+-- forked process
 function worker()
    require 'torch'
    while true do
@@ -13,6 +15,7 @@ function worker()
    end
 end
 
+-- parent
 function parent()
    process = parallel.fork()
    process:exec(worker)
@@ -27,8 +30,7 @@ function parent()
    print('average time to transfer one image: ' .. timer:time().real/N .. ' sec')
 end
 
+-- protected env
 ok,err = pcall(parent)
 if not ok then print(err) end
 parallel.close()
-
---9502800008962154000111
