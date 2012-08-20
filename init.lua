@@ -177,9 +177,9 @@ fork = function(rip, protocol, rlua, ...)
           local pid
           if protocol then
              pid = sys.execute(protocol .. ' ' .. rip ..
-                               ' "' .. rlua .. " -e '" .. str .. "' " .. '" &  echo $!')
+                               ' "' .. rlua .. " -e '" .. str .. "' " .. '" &  echo $!', '*line')
           else
-             pid = sys.execute(rlua .. ' -e "' .. str .. '" & echo $!')
+             pid = sys.execute(rlua .. ' -e "' .. str .. '" & echo $!', '*line')
           end
           pid = pid:gsub('%s','')
 
