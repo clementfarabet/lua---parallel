@@ -4,7 +4,7 @@
 
 static int Lzmq_(send)(lua_State *L)
 {
-  THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
+  THStorage *storage = luaT_checkudata(L, 1, torch_Storage);
 
   zmq_ptr *s = luaL_checkudata(L, 2, MT_ZMQ_SOCKET);
 
@@ -39,7 +39,7 @@ static int Lzmq_(send)(lua_State *L)
 static int Lzmq_(recv)(lua_State *L)
 {
 
-  THStorage *storage = luaT_checkudata(L, 1, torch_(Storage_id));
+  THStorage *storage = luaT_checkudata(L, 1, torch_Storage);
 
   zmq_ptr *s = luaL_checkudata(L, 2, MT_ZMQ_SOCKET);
 
@@ -88,7 +88,7 @@ static const struct luaL_reg Lzmq_(methods)[] = {
 
 static void Lzmq_(Init)(lua_State *L)
 {
-  luaT_pushmetaclass(L, torch_(Storage_id));
+  luaT_pushmetatable(L, torch_Storage);
   luaT_registeratname(L, Lzmq_(methods), "zmq");
 }
 

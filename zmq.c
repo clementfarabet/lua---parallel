@@ -54,16 +54,8 @@
 #define max( a, b ) ( ((a) > (b)) ? (a) : (b) )
 
 #define torch_(NAME) TH_CONCAT_3(torch_, Real, NAME)
-#define torch_string_(NAME) TH_CONCAT_STRING_3(torch., Real, NAME)
+#define torch_Storage TH_CONCAT_STRING_3(torch., Real, Storage)
 #define Lzmq_(NAME) TH_CONCAT_3(Lzmq_, Real, NAME)
-
-static const void* torch_CharStorage_id = NULL;
-static const void* torch_ByteStorage_id = NULL;
-static const void* torch_ShortStorage_id = NULL;
-static const void* torch_IntStorage_id = NULL;
-static const void* torch_LongStorage_id = NULL;
-static const void* torch_FloatStorage_id = NULL;
-static const void* torch_DoubleStorage_id = NULL;
 
 /* detect zmq version >= 2.1.0 */
 #define VERSION_2_1 0
@@ -588,15 +580,6 @@ DLL_EXPORT int luaopen_libluazmq(lua_State *L)
     set_zmq_const(NOBLOCK);
     set_zmq_const(SNDMORE);
 
-    /* torch stuff */
-    torch_CharStorage_id   = luaT_checktypename2id(L, "torch.CharStorage");
-    torch_ByteStorage_id   = luaT_checktypename2id(L, "torch.ByteStorage");
-    torch_ShortStorage_id  = luaT_checktypename2id(L, "torch.ShortStorage");
-    torch_IntStorage_id    = luaT_checktypename2id(L, "torch.IntStorage");
-    torch_LongStorage_id   = luaT_checktypename2id(L, "torch.LongStorage");
-    torch_FloatStorage_id  = luaT_checktypename2id(L, "torch.FloatStorage");
-    torch_DoubleStorage_id = luaT_checktypename2id(L, "torch.DoubleStorage");
-    
     Lzmq_CharInit(L);
     Lzmq_ByteInit(L);
     Lzmq_ShortInit(L);
