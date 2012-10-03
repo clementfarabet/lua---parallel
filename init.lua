@@ -59,6 +59,7 @@ local os = os
 local io = io
 local pairs = pairs
 local ipairs = ipairs
+local package = package
 
 module 'parallel'
 _lib = glob.libparallel
@@ -157,7 +158,9 @@ fork = function(rip, protocol, rlua, ...)
           -- (2) generate code for child
           --     this involve setting its id, parent id, and making sure it connects
           --     to its parent
-          local str =  "parallel = {} "
+          local str = "package.path = [[" .. package.path .. "]] "
+          str = str .. "package.cpath = [[" .. package.cpath .. "]] "
+          str = str .. "parallel = {} "
           str = str .. "parallel.id = " .. processid .. " "
           str = str .. "parallel.parent = {id = " .. id .. "} "
           str = str .. "require([[parallel]]) "
