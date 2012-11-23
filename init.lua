@@ -160,6 +160,7 @@ fork = function(rip, protocol, rlua, ...)
           --     to its parent
           local str = "package.path = [[" .. package.path .. "]] "
           str = str .. "package.cpath = [[" .. package.cpath .. "]] "
+          str = str .. "require [[torch-env]]"
           str = str .. "parallel = {} "
           str = str .. "parallel.id = " .. processid .. " "
           str = str .. "parallel.parent = {id = " .. id .. "} "

@@ -526,15 +526,15 @@ DLL_EXPORT int luaopen_libluazmq(lua_State *L)
 {
     /* context metatable. */
     luaL_newmetatable(L, MT_ZMQ_CONTEXT);
-    lua_createtable(L, 0, sizeof(ctxmethods) / sizeof(luaL_reg) - 1);
     luaL_register(L, NULL, ctxmethods);
-    lua_setfield(L, -2, "__index");
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -1, "__index");
 
     /* socket metatable. */
     luaL_newmetatable(L, MT_ZMQ_SOCKET);
-    lua_createtable(L, 0, sizeof(sockmethods) / sizeof(luaL_reg) - 1);
     luaL_register(L, NULL, sockmethods);
-    lua_setfield(L, -2, "__index");
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -1, "__index");
 
     luaL_register(L, "zmq", zmqlib);
 
