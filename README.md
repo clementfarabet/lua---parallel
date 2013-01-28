@@ -4,6 +4,8 @@ This package provides a simple mechanism to dispatch and run Torch/Lua code
 as independant processes and communicate via ZeroMQ sockets. Processes
 can be forked locally or on remote machines.
 
+Note: ZeroMQ Version 2.2 is supported (not the newest >= 3.0).
+
 ## License
 
 Copyright (c) 2011 Clement Farabet, Marco Scoffier
