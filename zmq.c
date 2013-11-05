@@ -69,6 +69,21 @@
 #define MT_ZMQ_CONTEXT "MT_ZMQ_CONTEXT"
 #define MT_ZMQ_SOCKET  "MT_ZMQ_SOCKET"
 
+#ifndef ZMQ_DONTWAIT
+#   define ZMQ_DONTWAIT   ZMQ_NOBLOCK
+#endif
+#ifndef ZMQ_RCVHWM
+#   define ZMQ_RCVHWM     ZMQ_HWM
+#endif
+#ifndef ZMQ_SNDHWM
+#   define ZMQ_SNDHWM     ZMQ_HWM
+#endif
+#if ZMQ_VERSION_MAJOR == 2
+#   define zmq_ctx_destroy(context) zmq_term(context)
+#   define zmq_msg_send(msg,sock,opt) zmq_send (sock, msg, opt)
+#   define zmq_msg_recv(msg,sock,opt) zmq_recv (sock, msg, opt)
+#endif
+
 typedef struct {
     void *ptr;
     int should_free;
@@ -156,7 +171,7 @@ static int Lzmq_term(lua_State *L)
     zmq_ptr *ctx = luaL_checkudata(L, 1, MT_ZMQ_CONTEXT);
 
     if(ctx->ptr != NULL) {
-        if(zmq_term(ctx->ptr) == 0) {
+        if(zmq_ctx_destroy(ctx->ptr) == 0) {
             ctx->ptr = NULL;
         } else {
             return Lzmq_push_error(L);
@@ -261,10 +276,14 @@ static int Lzmq_setsockopt(lua_State *L)
         }
         break;
 #endif
+#if ZMQ_SWAP
     case ZMQ_SWAP:
+#endif
+#if ZMQ_MCAST_LOOP
+    case ZMQ_MCAST_LOOP:
+#endif
     case ZMQ_RATE:
     case ZMQ_RECOVERY_IVL:
-    case ZMQ_MCAST_LOOP:
         {
             int64_t optval = (int64_t) luaL_checklong(L, 3);
             rc = zmq_setsockopt(s->ptr, option, (void *) &optval, sizeof(int64_t));
@@ -279,7 +298,11 @@ static int Lzmq_setsockopt(lua_State *L)
             rc = zmq_setsockopt(s->ptr, option, (void *) optval, optvallen);
         }
         break;
+#ifdef ZMQ_HWM
     case ZMQ_HWM:
+#endif
+    case ZMQ_SNDHWM:
+    case ZMQ_RCVHWM:
     case ZMQ_AFFINITY:
     case ZMQ_SNDBUF:
     case ZMQ_RCVBUF:
@@ -350,10 +373,14 @@ static int Lzmq_getsockopt(lua_State *L)
         }
         break;
 #endif
+#if ZMQ_SWAP
     case ZMQ_SWAP:
+#endif
+#if ZMQ_MCAST_LOOP
+    case ZMQ_MCAST_LOOP:
+#endif
     case ZMQ_RATE:
     case ZMQ_RECOVERY_IVL:
-    case ZMQ_MCAST_LOOP:
     case ZMQ_RCVMORE:
         {
             int64_t optval;
@@ -378,7 +405,11 @@ static int Lzmq_getsockopt(lua_State *L)
             }
         }
         break;
+#ifdef ZMQ_HWM
     case ZMQ_HWM:
+#endif
+    case ZMQ_SNDHWM:
+    case ZMQ_RCVHWM:
     case ZMQ_AFFINITY:
     case ZMQ_SNDBUF:
     case ZMQ_RCVBUF:
@@ -447,13 +478,13 @@ static int Lzmq_send(lua_State *L)
     }
     memcpy(zmq_msg_data(&msg), data, msg_size);
 
-    int rc = zmq_send(s->ptr, &msg, flags);
+    int rc = zmq_msg_send(&msg, s->ptr, flags);
 
     if(zmq_msg_close(&msg) != 0) {
         return Lzmq_push_error(L);
     }
 
-    if (rc != 0) {
+    if (rc == -1) {
         return Lzmq_push_error(L);
     }
 
@@ -472,7 +503,7 @@ static int Lzmq_recv(lua_State *L)
         return Lzmq_push_error(L);
     }
 
-    if(zmq_recv(s->ptr, &msg, flags) != 0) {
+    if(zmq_msg_recv(&msg, s->ptr, flags) == -1) {
         // Best we can do in this case is try to close and hope for the best.
         zmq_msg_close(&msg);
         return Lzmq_push_error(L);
@@ -550,15 +581,24 @@ DLL_EXPORT int luaopen_libluazmq(lua_State *L)
     set_zmq_const(PUSH);
 
     /* Socket options. */
+#ifdef ZMQ_HWM
     set_zmq_const(HWM);
+#else
+    set_zmq_const(SNDHWM);
+    set_zmq_const(RCVHWM);
+#endif
+#ifdef ZMQ_SWAP
     set_zmq_const(SWAP);
+#endif
     set_zmq_const(AFFINITY);
     set_zmq_const(IDENTITY);
     set_zmq_const(SUBSCRIBE);
     set_zmq_const(UNSUBSCRIBE);
     set_zmq_const(RATE);
     set_zmq_const(RECOVERY_IVL);
+#ifdef ZMQ_MCAST_LOOP
     set_zmq_const(MCAST_LOOP);
+#endif
     set_zmq_const(SNDBUF);
     set_zmq_const(RCVBUF);
     set_zmq_const(RCVMORE);
@@ -578,6 +618,7 @@ DLL_EXPORT int luaopen_libluazmq(lua_State *L)
 
     /* Send/recv options. */
     set_zmq_const(NOBLOCK);
+    set_zmq_const(DONTWAIT);
     set_zmq_const(SNDMORE);
 
     Lzmq_CharInit(L);

@@ -21,13 +21,13 @@ static int Lzmq_(send)(lua_State *L)
 
   memcpy(zmq_msg_data(&msg), storage->data, msg_size);
 
-  int rc = zmq_send(s->ptr, &msg, flags);
+  int rc = zmq_msg_send(&msg, s->ptr, flags);
 
   if(zmq_msg_close(&msg) != 0) {
     return Lzmq_push_error(L);
   }
 
-  if (rc != 0) {
+  if (rc == -1) {
     return Lzmq_push_error(L);
   }
 
@@ -51,7 +51,7 @@ static int Lzmq_(recv)(lua_State *L)
     return Lzmq_push_error(L);
   }
 
-  if(zmq_recv(s->ptr, &msg, flags) != 0) {
+  if(zmq_msg_recv(&msg, s->ptr, flags) == -1) {
     if (flags == 1) {
       lua_pushboolean(L, 0);
       return 1;
