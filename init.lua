@@ -128,7 +128,7 @@ run = function(code,...)
 fork = function(rip, protocol, rlua, ...)
           -- (0) remote or local connection
           local lip
-          rlua = rlua or 'th'
+          rlua = rlua or 'luajit'
           if rip then
              protocol = protocol or 'ssh -Y'
              if ip == '127.0.0.1' then
@@ -446,23 +446,23 @@ receive = function(process, object, flags)
 close = function()
            print('closing session')
            if parent.id ~= -1 then
-              os.execute("sleep 1")
+              sys.execute("sleep 1")
            end
            for _,process in pairs(children) do
               -- this is a bit brutal, but at least ensures that
               -- all forked children are *really* killed
               if type(process) == 'table' then
-                 os.execute('kill -9 ' .. process.unixid)
+                 sys.execute('kill -9 ' .. process.unixid)
               end
            end
            if remotes then
-              os.execute("sleep 1")
+              sys.execute("sleep 1")
               for _,remote in ipairs(remotes) do
                  -- second brutal thing: check for remote processes that
                  -- might have become orphans, and kill them
                  local prot = remote.protocol or 'ssh -Y'
                  local orphans = sys.fexecute(prot .. " " .. remote.ip .. " " ..
-                                             "ps -ef | grep 'th -e parallel' "  ..
+                                             "ps -ef | grep '" .. (rlua or 'luajit') .. "' "  ..
                                              "| awk '{if ($3 == 1) {print $2}}'")
                  local kill = 'kill -9 '
                  local pids = ''
@@ -470,7 +470,7 @@ close = function()
                     pids = pids .. orphan .. ' '
                  end
                  if pids ~= '' then
-                    os.execute(prot .. ' ' .. remote.ip .. ' "' .. kill .. pids .. '"')
+                    sys.execute(prot .. ' ' .. remote.ip .. ' "' .. kill .. pids .. '"')
                  end
               end
            end
