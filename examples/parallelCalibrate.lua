@@ -8,8 +8,8 @@ print = parallel.print
 -- parent code:
 function parent()
    -- declare machines to use
-   parallel.addremote({ip='localhost', cores=4, lua=paths.install_bin..'/torch-lua'},
-                      {ip='localhost', cores=4, lua=paths.install_bin..'/torch-lua'})
+   parallel.addremote({ip='localhost', cores=4, lua=paths.install_bin..'/th'},
+                      {ip='localhost', cores=4, lua=paths.install_bin..'/th'})
 
    -- run calibration
    parallel.calibrate()
