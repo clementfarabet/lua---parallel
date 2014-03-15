@@ -8,8 +8,8 @@ print = parallel.print
 -- parent code:
 function parent()
    -- declare machines to use
-   parallel.addremote({ip='localhost', cores=4, lua=sys.execute("which th")},
-                      {ip='localhost', cores=4, lua=sys.execute("which th")})
+   parallel.addremote({ip='localhost', cores=4, lua=paths.findprogram('luajit')},
+                      {ip='localhost', cores=4, lua=paths.findprogram('luajit')})
 
    -- run calibration
    parallel.calibrate()

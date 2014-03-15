@@ -34,7 +34,7 @@ function parent()
    parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
    -- configure remotes [modify this line to try other machines]
-   parallel.addremote({ip='localhost', cores=2, lua=sys.execute('which th')})
+   parallel.addremote({ip='localhost', cores=2, lua=paths.findprogram('luajit')})
 
    -- fork 20 processes
    parallel.print('forking 3 processes on remote machine(s)')
