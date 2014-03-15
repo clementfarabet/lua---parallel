@@ -85,7 +85,7 @@ autoip = function(interface)
                interfaces = interfaces or {'eth0','eth1','wlan0','wlan1'}
                local ipfound
                for _,interface in ipairs(interfaces) do
-                  ipfound = sys.execute("/sbin/ifconfig " .. interface
+                  ipfound = sys.fexecute("/sbin/ifconfig " .. interface
                                         .. " | grep 'inet addr:'| grep -v '127.0.0.1'"
                                         .. " | cut -d: -f2 | awk '{ print $1}'")
                   if ipfound:find('%d') then
@@ -97,7 +97,7 @@ autoip = function(interface)
                interfaces = interfaces or {'en0','en1'}
                local ipfound
                for _,interface in ipairs(interfaces) do
-                  ipfound = sys.execute("/sbin/ifconfig " .. interface
+                  ipfound = sys.fexecute("/sbin/ifconfig " .. interface
                                         .. " | grep -E 'inet.[0-9]' | grep -v '127.0.0.1'"
                                         .. " | awk '{ print $2}'")
                   if ipfound:find('%d') then
@@ -128,7 +128,7 @@ run = function(code,...)
 fork = function(rip, protocol, rlua, ...)
           -- (0) remote or local connection
           local lip
-          rlua = rlua or 'torch-lua'
+          rlua = rlua or 'luajit'
           if rip then
              protocol = protocol or 'ssh -Y'
              if ip == '127.0.0.1' then
@@ -160,7 +160,7 @@ fork = function(rip, protocol, rlua, ...)
           --     to its parent
           local str = "package.path = [[" .. package.path .. "]] "
           str = str .. "package.cpath = [[" .. package.cpath .. "]] "
-          str = str .. "require [[torch-env]]"
+          str = str .. "require [[env]]"
           str = str .. "parallel = {} "
           str = str .. "parallel.id = " .. processid .. " "
           str = str .. "parallel.parent = {id = " .. id .. "} "
@@ -180,10 +180,10 @@ fork = function(rip, protocol, rlua, ...)
           -- (3) fork a lua process, running the code dumped above
           local pid
           if protocol then
-             pid = sys.execute(protocol .. ' ' .. rip ..
+             pid = sys.fexecute(protocol .. ' ' .. rip ..
                                ' "' .. rlua .. " -e '" .. str .. "' " .. '" &  echo $!', '*line')
           else
-             pid = sys.execute(rlua .. ' -e "' .. str .. '" & echo $!', '*line')
+             pid = sys.fexecute(rlua .. ' -e "' .. str .. '" & echo $!', '*line')
           end
           pid = pid:gsub('%s','')
 
@@ -329,7 +329,7 @@ sync = function(process)
           else 
              -- a single process to sync
              while true do
-                local alive = sys.execute("ps -ef | awk '{if ($2 == " .. 
+                local alive = sys.fexecute("ps -ef | awk '{if ($2 == " .. 
                                           process.unixid .. ") {print $2}}'"):gsub('%s','')
                 if alive == '' then
                    if process.remote and process.remote.cores then
@@ -446,23 +446,23 @@ receive = function(process, object, flags)
 close = function()
            print('closing session')
            if parent.id ~= -1 then
-              os.execute("sleep 1")
+              sys.execute("sleep 1")
            end
            for _,process in pairs(children) do
               -- this is a bit brutal, but at least ensures that
               -- all forked children are *really* killed
               if type(process) == 'table' then
-                 os.execute('kill -9 ' .. process.unixid)
+                 sys.execute('kill -9 ' .. process.unixid)
               end
            end
            if remotes then
-              os.execute("sleep 1")
+              sys.execute("sleep 1")
               for _,remote in ipairs(remotes) do
                  -- second brutal thing: check for remote processes that
                  -- might have become orphans, and kill them
                  local prot = remote.protocol or 'ssh -Y'
-                 local orphans = sys.execute(prot .. " " .. remote.ip .. " " ..
-                                             "ps -ef | grep 'torch-lua -e parallel' "  ..
+                 local orphans = sys.fexecute(prot .. " " .. remote.ip .. " " ..
+                                             "ps -ef | grep '" .. (rlua or 'luajit') .. "' "  ..
                                              "| awk '{if ($3 == 1) {print $2}}'")
                  local kill = 'kill -9 '
                  local pids = ''
@@ -470,7 +470,7 @@ close = function()
                     pids = pids .. orphan .. ' '
                  end
                  if pids ~= '' then
-                    os.execute(prot .. ' ' .. remote.ip .. ' "' .. kill .. pids .. '"')
+                    sys.execute(prot .. ' ' .. remote.ip .. ' "' .. kill .. pids .. '"')
                  end
               end
            end
