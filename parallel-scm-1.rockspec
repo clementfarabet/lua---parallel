@@ -1,9 +1,8 @@
 package = "parallel"
-version = "1.0-0"
+version = "scm-1"
 
 source = {
-   url = "git://github.com/clementfarabet/lua---parallel",
-   tag = "1.0-0"
+   url = "git://github.com/clementfarabet/lua---parallel"
 }
 
 description = {
