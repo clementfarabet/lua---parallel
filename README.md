@@ -4,62 +4,15 @@ This package provides a simple mechanism to dispatch and run Torch/Lua code
 as independant processes and communicate via ZeroMQ sockets. Processes
 can be forked locally or on remote machines.
 
-Note: ZeroMQ Version 2.2 is supported (not the newest >= 3.0).
-
-## License
-
-Copyright (c) 2011 Clement Farabet, Marco Scoffier
-
-Permission is hereby granted, free of charge, to any person obtaining
-a copy of this software and associated documentation files (the
-"Software"), to deal in the Software without restriction, including
-without limitation the rights to use, copy, modify, merge, publish,
-distribute, sublicense, and/or sell copies of the Software, and to
-permit persons to whom the Software is furnished to do so, subject to
-the following conditions:
-
-The above copyright notice and this permission notice shall be
-included in all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
-LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
-WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 ## Install 
 
-1/ Torch7 is required:
+* Install Torch7 per instructions at http://torch.ch/
+* Download and compile this package using luarocks:
 
-Dependencies, on Linux (Ubuntu > 9.04):
-
-``` sh
-$ apt-get install gcc g++ git libreadline5-dev cmake wget libqt4-core libqt4-gui libqt4-dev
 ```
-
-Dependencies, on Mac OS (Leopard, or more), using [Homebrew](http://mxcl.github.com/homebrew/):
-
-``` sh
-$ brew install git readline cmake wget qt
-```
-
-Then on both platforms:
-
-``` sh
-$ git clone https://github.com/andresy/torch
-$ cd torch
-$ mkdir build; cd build
-$ cmake ..
-$ make
-$ [sudo] make install
-```
-
-2/ Once Torch7 is available, install this package:
-
-``` sh
-$ [sudo] torch-rocks install parallel
+$ git clone https://github.com/moof2k/lua---parallel.git
+$ cd lua---parallel
+$ luarocks make
 ```
 
 ## Use the library
@@ -345,3 +298,27 @@ end
 ok,err = pcall(parent)
 if not ok then print(err) parallel.close() end
 ```
+
+
+## License
+
+Copyright (c) 2011 Clement Farabet, Marco Scoffier
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
