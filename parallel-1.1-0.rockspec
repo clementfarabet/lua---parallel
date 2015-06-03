@@ -17,6 +17,7 @@ A package to fork and serialize data between multiple processes.
 dependencies = {
    "torch >= 7.0",
    "sys >= 1.0",
+   "env >= 1.0"
 }
 
 build = {
