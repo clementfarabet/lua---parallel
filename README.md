@@ -6,13 +6,26 @@ can be forked locally or on remote machines.
 
 ## Install 
 
-* Install Torch7 per instructions at http://torch.ch/
-* Download and compile this package using luarocks:
+Install ZeroMQ 3 :
 
+```bash
+sudo apt-get install libzmq3-dev libzmq3
 ```
-$ git clone https://github.com/moof2k/lua---parallel.git
-$ cd lua---parallel
-$ luarocks make
+
+Install Torch7 per instructions at http://torch.ch/ .
+
+Download and compile this package using luarocks:
+
+```bash
+[sudo] luarocks install parallel
+```
+
+or 
+
+```bash
+git clone https://github.com/clementfarabet/lua---parallel.git
+cd lua---parallel
+luarocks make
 ```
 
 ## Use the library
