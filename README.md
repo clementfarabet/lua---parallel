@@ -252,7 +252,6 @@ end
 ``` lua
 -- required libs
 require 'parallel'
-require 'lab'
 
 -- define code for workers:
 function worker()
