@@ -522,13 +522,13 @@ static int Lzmq_recv(lua_State *L)
 
 
 
-static const luaL_reg zmqlib[] = {
+static const luaL_Reg zmqlib[] = {
     {"version",    Lzmq_version},
     {"init",       Lzmq_init},
     {NULL,         NULL}
 };
 
-static const luaL_reg ctxmethods[] = {
+static const luaL_Reg ctxmethods[] = {
     {"__gc",       Lzmq_ctx_gc},
     {"lightuserdata", Lzmq_ctx_lightuserdata},
     {"term",       Lzmq_term}, 
@@ -536,7 +536,7 @@ static const luaL_reg ctxmethods[] = {
     {NULL,         NULL}
 };
 
-static const luaL_reg sockmethods[] = {
+static const luaL_Reg sockmethods[] = {
     {"__gc",    Lzmq_close},
     {"close",   Lzmq_close},
     {"setopt",  Lzmq_setsockopt},
@@ -557,17 +557,20 @@ DLL_EXPORT int luaopen_libluazmq(lua_State *L)
 {
     /* context metatable. */
     luaL_newmetatable(L, MT_ZMQ_CONTEXT);
-    luaL_register(L, NULL, ctxmethods);
+    luaL_setfuncs(L, ctxmethods, 0);
     lua_pushvalue(L, -1);
     lua_setfield(L, -1, "__index");
 
     /* socket metatable. */
     luaL_newmetatable(L, MT_ZMQ_SOCKET);
-    luaL_register(L, NULL, sockmethods);
+    luaL_setfuncs(L, sockmethods, 0);
     lua_pushvalue(L, -1);
     lua_setfield(L, -1, "__index");
 
-    luaL_register(L, "zmq", zmqlib);
+    lua_newtable(L);
+    lua_pushvalue(L, -1);
+    lua_setglobal(L, "zmq");
+    luaL_setfuncs(L, zmqlib, 0);
 
     /* Socket types. */
     set_zmq_const(PAIR);

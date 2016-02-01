@@ -5,11 +5,13 @@ require 'torch'
 
 print = parallel.print
 
+local bin_name = jit and 'luajit' or 'lua'
+
 -- parent code:
 function parent()
    -- declare machines to use
-   parallel.addremote({ip='localhost', cores=4, lua=paths.findprogram('luajit')},
-                      {ip='localhost', cores=4, lua=paths.findprogram('luajit')})
+   parallel.addremote({ip='localhost', cores=4, lua=paths.findprogram(bin_name)},
+                      {ip='localhost', cores=4, lua=paths.findprogram(bin_name)})
 
    -- run calibration
    parallel.calibrate()
