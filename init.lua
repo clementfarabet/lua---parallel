@@ -42,11 +42,10 @@ require 'libluazmq'
 
 local glob = _G
 local assignedid
-if parallel then 
-   assignedid = parallel.id
-   assignedip = parallel.ip
-   parent = parallel.parent
-end
+local assignedid = parallel and parallel.id or nil
+local assignedip = parallel and parallel.ip or nil
+local assignedparent = parallel and parallel.parent or nil
+parallel = {}
 local sys = sys
 local zmq = zmq
 local type = type
@@ -61,16 +60,15 @@ local pairs = pairs
 local ipairs = ipairs
 local package = package
 
-module 'parallel'
-_lib = glob.libparallel
-glob.libparallel = nil
-
 --------------------------------------------------------------------------------
 -- 0MQ context and options
 --------------------------------------------------------------------------------
-zmqctx = zmq.init(1)
-currentport = 6000
+local zmqctx = zmq.init(1)
+local currentport = 6000
+parallel.currentport = currentport
+parallel.zmqctx = zmqctx
 
+local autoip, run, fork, nfork, sfork, exec, join, yield, sync, send, receive, close, print, addremote, calibrate, _fill, reset
 --------------------------------------------------------------------------------
 -- configure local IP
 --------------------------------------------------------------------------------
@@ -89,7 +87,7 @@ autoip = function(interface)
                                         .. " | grep 'inet addr:'| grep -v '127.0.0.1'"
                                         .. " | cut -d: -f2 | awk '{ print $1}'")
                   if ipfound:find('%d') then
-                     ip = ipfound:gsub('%s','')
+                     parallel.ip = ipfound:gsub('%s','')
                      break
                   end
                end
@@ -101,7 +99,7 @@ autoip = function(interface)
                                         .. " | grep -E 'inet.[0-9]' | grep -v '127.0.0.1'"
                                         .. " | awk '{ print $2}'")
                   if ipfound:find('%d') then
-                     ip = ipfound:gsub('%s','')
+                     parallel.ip = ipfound:gsub('%s','')
                      break
                   end
                end
@@ -110,7 +108,7 @@ autoip = function(interface)
                return
             end
          end
-
+parallel.autoip = autoip
 --------------------------------------------------------------------------------
 -- run is a shortcut for fork/exec code on the local machine
 --------------------------------------------------------------------------------
@@ -121,22 +119,23 @@ run = function(code,...)
          -- (2) exec code
          child:exec(code)
       end
-
+parallel.run = run
 --------------------------------------------------------------------------------
 -- fork new idle process
 --------------------------------------------------------------------------------
 fork = function(rip, protocol, rlua, ...)
           -- (0) remote or local connection
           local lip
-          rlua = rlua or 'luajit'
+	  local bin_name = jit and 'luajit' or 'lua'
+          rlua = rlua or bin_name
           if rip then
              protocol = protocol or 'ssh -Y'
-             if ip == '127.0.0.1' then
+             if parallel.ip == '127.0.0.1' then
                 print('<parallel.fork> WARNING: local ip is set to localhost, forked'
                       .. ' remote processes will not be able to reach it,'
                       .. ' please set your local ip: parallel.ip = "XX.XX.XX.XX"')
              end
-             lip = ip
+             lip = parallel.ip
           else
              lip = '127.0.0.1'
           end
@@ -161,10 +160,11 @@ fork = function(rip, protocol, rlua, ...)
           local str = "package.path = [[" .. package.path .. "]] "
           str = str .. "package.cpath = [[" .. package.cpath .. "]] "
           str = str .. "require [[env]]"
+          str = str .. " loadstring = loadstring or load "
           str = str .. "parallel = {} "
-          str = str .. "parallel.id = " .. processid .. " "
-          str = str .. "parallel.parent = {id = " .. id .. "} "
-          str = str .. "require([[parallel]]) "
+          str = str .. "parallel.id = " .. parallel.processid .. " "
+          str = str .. "parallel.parent = {id = " .. parallel.id .. "} "
+          str = str .. "parallel = require([[parallel]]) "
           str = str .. "parallel.parent.socketrd = parallel.zmqctx:socket(zmq.PULL) "
           str = str .. "parallel.parent.socketrd:connect([[tcp://"..lip..":"..portwr.."]]) "
           str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(zmq.PUSH) "
@@ -175,7 +175,11 @@ fork = function(rip, protocol, rlua, ...)
              str = str .. 'table.insert(parallel.args, ' .. tostring(args[i]) .. ') '
           end
           str = str .. "_exec_ = parallel.parent:receive() "
-          str = str .. "for _,func in ipairs(_exec_) do loadstring(func)() end"
+          str = str .. [[for _,func in ipairs(_exec_) do 
+                              local f = loadstring(func)
+                              debug.setupvalue(f, 1, _ENV)
+                              f()
+                         end]]
 
           -- (3) fork a lua process, running the code dumped above
           local pid
@@ -188,17 +192,17 @@ fork = function(rip, protocol, rlua, ...)
           pid = pid:gsub('%s','')
 
           -- (4) register child process for future reference
-          local child = {id=processid, unixid=pid, ip=rip, speed=1,
+          local child = {id=parallel.processid, unixid=pid, ip=rip, speed=1,
                          socketwr=sockwr, socketrd=sockrd}
           _fill(child)
-          children[processid] = child
-          nchildren = nchildren + 1
+          parallel.children[parallel.processid] = child
+          parallel.nchildren = parallel.nchildren + 1
 
           -- (5) incr counter for next process
-          processid = processid + 1
+          parallel.processid = parallel.processid + 1
           return child
        end
-
+parallel.fork = fork
 --------------------------------------------------------------------------------
 -- nfork = fork N processes, according to the given configuration
 -- the configuration is a table with N entries, each entry being:
@@ -223,7 +227,7 @@ nfork = function(...)
            _fill(forked)
            return forked
         end
-
+parallel.nfork = nfork
 --------------------------------------------------------------------------------
 -- sfork = smart fork N processes, according to the current remotes table
 -- parallel.addremote() should be called first to configure which machines are
@@ -257,7 +261,7 @@ sfork = function(nb)
               return forked
            end
         end
-
+parallel.sfork = sfork
 --------------------------------------------------------------------------------
 -- exec code in given process
 --------------------------------------------------------------------------------
@@ -285,7 +289,7 @@ exec = function(process, code)
           -- load all processes with code
           send(processes, exec)
        end
-
+parallel.exec = exec
 --------------------------------------------------------------------------------
 -- join = synchronize processes that have yielded, blocking call
 --------------------------------------------------------------------------------
@@ -305,16 +309,16 @@ join = function(process, msg)
              process.socketrd:recv()
           end
        end
-
+parallel.join = join
 --------------------------------------------------------------------------------
 -- yield = interupt execution flow to allow parent to join
 --------------------------------------------------------------------------------
 yield = function()
-           local msg = parent.socketrd:recv()
-           parent.socketwr:send('!')
+           local msg = parallel.parent.socketrd:recv()
+           parallel.parent.socketwr:send('!')
            return msg
         end
-
+parallel.yield = yield
 --------------------------------------------------------------------------------
 -- sync = wait on a process, or processes, to terminate
 --------------------------------------------------------------------------------
@@ -336,14 +340,14 @@ sync = function(process)
                       process.remote.cores = process.remote.cores + 1
                       remotes.cores = remotes.cores + 1
                    end
-                   children[process.id] = nil
-                   nchildren = nchildren - 1
+                   parallel.children[process.id] = nil
+                   parallel.nchildren = parallel.nchildren - 1
                    break
                 end
              end
           end
        end
-
+parallel.sync = sync
 --------------------------------------------------------------------------------
 -- transmit data
 --------------------------------------------------------------------------------
@@ -382,7 +386,7 @@ send = function(process, object)
              end
           end
        end
-
+parallel.send = send
 --------------------------------------------------------------------------------
 -- receive data
 --------------------------------------------------------------------------------
@@ -439,16 +443,16 @@ receive = function(process, object, flags)
              end
              return object, ret
           end
-
+parallel.receive = receive
 --------------------------------------------------------------------------------
 -- close = clean up sockets
 --------------------------------------------------------------------------------
 close = function()
            print('closing session')
-           if parent.id ~= -1 then
+           if parallel.parent.id ~= -1 then
               sys.execute("sleep 1")
            end
-           for _,process in pairs(children) do
+           for _,process in pairs(parallel.children) do
               -- this is a bit brutal, but at least ensures that
               -- all forked children are *really* killed
               if type(process) == 'table' then
@@ -476,14 +480,15 @@ close = function()
            end
         end
 
+parallel.close = close
 --------------------------------------------------------------------------------
 -- all processes should use this print method
 --------------------------------------------------------------------------------
 local _print = glob.print
 print = function(...)
-           _print('<parallel#' .. glob.string.format('%03d',id) .. '>', ...)
+   _print('<parallel#' .. glob.string.format('%03d', parallel.id) .. '>', ...)
         end
-
+parallel.print = print
 --------------------------------------------------------------------------------
 -- add remote machine
 -- the table given is a table with N entries, each entry being:
@@ -504,7 +509,7 @@ addremote = function(...)
                   remotes.cores = remotes.cores + entry.cores
                end
             end
-
+parallel.addremote = addremote
 --------------------------------------------------------------------------------
 -- calibrate remote machines: this function executes as many processes a
 -- cores declared for each machine, and assigns a speed coefficient to each
@@ -557,7 +562,7 @@ calibrate = function()
                   end
                end
             end
-
+parallel.calibrate = calibrate
 --------------------------------------------------------------------------------
 -- create new process table, with methods
 --------------------------------------------------------------------------------
@@ -568,23 +573,26 @@ _fill = function(process)
            process.receive = receive
            process.exec = exec
         end
-
+parallel._fill = _fill
 --------------------------------------------------------------------------------
 -- reset = forget all children, go back to initial state
 -- TODO: this is the right place to properly terminate children
 --------------------------------------------------------------------------------
 reset = function()
-           id = assignedid or 0
-           ip = assignedip or "127.0.0.1"
-           parent = parent or {id = -1}
-           children = {}
-           processid = 1
-           if parent.id ~= -1 then
-              parent.receive = receive
-              parent.send = send
+           parallel.id = assignedid or 0
+           parallel.ip = assignedip or "127.0.0.1"
+           parallel.parent = assignedparent or {id = -1}
+           parallel.children = {}
+           parallel.processid = 1
+           if parallel.parent.id ~= -1 then
+              parallel.parent.receive = receive
+              parallel.parent.send = send
            end
-           _fill(children)
-           nchildren = 0
+           _fill(parallel.children)
+           parallel.nchildren = 0
            autoip()
         end
 reset()
+parallel.reset = reset
+
+return parallel

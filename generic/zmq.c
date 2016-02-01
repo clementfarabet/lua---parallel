@@ -80,7 +80,7 @@ static int Lzmq_(recv)(lua_State *L)
   return 1;
 }
 
-static const struct luaL_reg Lzmq_(methods)[] = {
+static const struct luaL_Reg Lzmq_(methods)[] = {
   {"send",    Lzmq_(send)},
   {"recv",    Lzmq_(recv)},
   {NULL, NULL}

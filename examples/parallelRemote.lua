@@ -2,6 +2,7 @@
 -- required libs
 require 'parallel'
 require 'torch'
+local bin_name = jit and 'luajit' or 'lua'
 
 -- define code for workers:
 function worker()
@@ -34,7 +35,7 @@ function parent()
    parallel.print('Im the parent, my ID is: ' .. parallel.id)
 
    -- configure remotes [modify this line to try other machines]
-   parallel.addremote({ip='localhost', cores=2, lua=paths.findprogram('luajit')})
+   parallel.addremote({ip='localhost', cores=2, lua=paths.findprogram(bin_name)})
 
    -- fork 20 processes
    parallel.print('forking 3 processes on remote machine(s)')
