@@ -1,2 +1,3 @@
 require 'torch'
-require 'libluazmq'
+local zmq = require 'libluazmq'
+return zmq

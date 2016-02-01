@@ -38,7 +38,7 @@ require 'os'
 require 'io'
 require 'sys'
 require 'torch'
-require 'libluazmq'
+local zmq = require 'libluazmq'
 
 local glob = _G
 local assignedid
@@ -46,8 +46,8 @@ local assignedid = parallel and parallel.id or nil
 local assignedip = parallel and parallel.ip or nil
 local assignedparent = parallel and parallel.parent or nil
 parallel = {}
+parallel.zmq = zmq
 local sys = sys
-local zmq = zmq
 local type = type
 local tostring = tostring
 local torch = torch
@@ -141,8 +141,8 @@ fork = function(rip, protocol, rlua, ...)
           end
 
           -- (1) create sockets to communicate with child
-          local sockwr = zmqctx:socket(zmq.PUSH)
-          local sockrd = zmqctx:socket(zmq.PULL)
+          local sockwr = zmqctx:socket(parallel.zmq.PUSH)
+          local sockrd = zmqctx:socket(parallel.zmq.PULL)
           local portwr = currentport
           while not sockwr:bind("tcp://*:" .. portwr) do
              currentport = currentport + 1
@@ -165,9 +165,9 @@ fork = function(rip, protocol, rlua, ...)
           str = str .. "parallel.id = " .. parallel.processid .. " "
           str = str .. "parallel.parent = {id = " .. parallel.id .. "} "
           str = str .. "parallel = require([[parallel]]) "
-          str = str .. "parallel.parent.socketrd = parallel.zmqctx:socket(zmq.PULL) "
+          str = str .. "parallel.parent.socketrd = parallel.zmqctx:socket(parallel.zmq.PULL) "
           str = str .. "parallel.parent.socketrd:connect([[tcp://"..lip..":"..portwr.."]]) "
-          str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(zmq.PUSH) "
+          str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(parallel.zmq.PUSH) "
           str = str .. "parallel.parent.socketwr:connect([[tcp://"..lip..":"..portrd.."]]) "
           local args = {...}
           str = str .. "parallel.args = {}"
@@ -392,7 +392,7 @@ parallel.send = send
 --------------------------------------------------------------------------------
 receive = function(process, object, flags)
              if object and type(object) == 'string' and object == 'noblock' or flags == 'noblock' then
-                flags = zmq.NOBLOCK
+                flags = parallel.zmq.NOBLOCK
              end
              local ret = true
              if not process.id then 

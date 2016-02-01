@@ -586,9 +586,8 @@ DLL_EXPORT int luaopen_libluazmq(lua_State *L)
     lua_setfield(L, -1, "__index");
 
     lua_newtable(L);
-    lua_pushvalue(L, -1);
-    lua_setglobal(L, "zmq");
     luaL_setfuncs(L, zmqlib, 0);
+    lua_pushvalue(L, -1);
 
     /* Socket types. */
     set_zmq_const(PAIR);

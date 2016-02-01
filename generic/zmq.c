@@ -90,6 +90,7 @@ static void Lzmq_(Init)(lua_State *L)
 {
   luaT_pushmetatable(L, torch_Storage);
   luaT_registeratname(L, Lzmq_(methods), "zmq");
+  lua_pop(L, 1);
 }
 
 #endif
