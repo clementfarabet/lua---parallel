@@ -114,7 +114,7 @@ parallel.autoip = autoip
 --------------------------------------------------------------------------------
 run = function(code,...)
          -- (1) fork process
-         local child = fork(nil, nil, nil, ...)
+         local child = fork(nil, nil, nil, nil, ...)
 
          -- (2) exec code
          child:exec(code)
@@ -123,7 +123,7 @@ parallel.run = run
 --------------------------------------------------------------------------------
 -- fork new idle process
 --------------------------------------------------------------------------------
-fork = function(rip, protocol, rlua, ...)
+fork = function(rip, protocol, rlua, renv, ...)
           -- (0) remote or local connection
           local lip
 	  local bin_name = jit and 'luajit' or 'lua'
@@ -139,6 +139,8 @@ fork = function(rip, protocol, rlua, ...)
           else
              lip = '127.0.0.1'
           end
+
+          local useRemoteEnv = (renv ~= nil and renv == 'remote') or false
 
           -- (1) create sockets to communicate with child
           local sockwr = zmqctx:socket(parallel.zmq.PUSH)
@@ -157,9 +159,7 @@ fork = function(rip, protocol, rlua, ...)
           -- (2) generate code for child
           --     this involve setting its id, parent id, and making sure it connects
           --     to its parent
-          local str = "package.path = [[" .. package.path .. "]] "
-          str = str .. "package.cpath = [[" .. package.cpath .. "]] "
-          str = str .. "require [[env]]"
+          local str = "require [[env]]"
           str = str .. " loadstring = loadstring or load "
           str = str .. "parallel = {} "
           str = str .. "parallel.id = " .. parallel.processid .. " "
@@ -169,6 +169,12 @@ fork = function(rip, protocol, rlua, ...)
           str = str .. "parallel.parent.socketrd:connect([[tcp://"..lip..":"..portwr.."]]) "
           str = str .. "parallel.parent.socketwr = parallel.zmqctx:socket(parallel.zmq.PUSH) "
           str = str .. "parallel.parent.socketwr:connect([[tcp://"..lip..":"..portrd.."]]) "
+
+          if not useRemoteEnv then
+            str = "package.cpath = [[" .. package.cpath .. "]] "..str
+            str = "package.path = [[" .. package.path .. "]] "..str
+          end
+
           local args = {...}
           str = str .. "parallel.args = {}"
           for i = 1,glob.select('#',...) do
@@ -243,7 +249,7 @@ sfork = function(nb)
               while nb ~= 0 do
                  for i,remote in ipairs(remotes) do
                     if remote.cores > 0 or remotes.cores <= 0 then
-                       local child = fork(remote.ip, remote.protocol, remote.lua)
+                       local child = fork(remote.ip, remote.protocol, remote.lua, remote.env)
                        child.remote = remote
                        child.speed = remote.speed or 1
                        remote.cores = remote.cores - 1
