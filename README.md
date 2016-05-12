@@ -105,7 +105,7 @@ code = function()
    -- any process can access its id, its parent's id [and children's id]
    print(parallel.id)
    print(parallel.parent.id)
-   if parallel.children[1] then print(parallel.children[1].id)
+   if parallel.children[1] then print(parallel.children[1].id) end
 
    -- if arguments were passed, they're found in the regular ... table        
    args = {...}    
